@@ -306,12 +306,28 @@ button { cursor: pointer; }
 .strategy-matrix { max-width: 1500px; padding: 32px; }.strategy-matrix header { grid-template-columns: 230px 1fr 520px; gap: 24px; padding-bottom: 22px; }.strategy-matrix header > span { font-size: 10px; }.strategy-matrix h3 { font-size: 32px; }.strategy-matrix header p { font-size: 13px; line-height: 1.65; }
 .matrix-row { grid-template-columns: 190px 1.2fr .65fr .65fr .65fr 1.65fr; min-height: 64px; }.matrix-row > * { padding: 14px 16px; font-size: 13px; line-height: 1.5; }.matrix-head { min-height: 45px; }.matrix-head b { font-size: 10px; }.matrix-footnote { margin-top: 15px; font-size: 11px; line-height: 1.75; }
 
+/* Knowledge workshop V3 — beginner-first labels and action-based training controls. */
+.foundry-title { align-items: center; }.foundry-title > div { flex: 0 0 auto; }.foundry-title p { flex: 1; max-width: none; color: #a6b8be; font-size: 14px; line-height: 1.5; white-space: nowrap; }
+.algorithm-card > span, .algorithm-card > i { font-size: 10px; }.algorithm-card small { color: #90a5ad; font-size: 13px; }
+.corpus-field > span, .vocab-control > span { font-size: 13px; }.corpus-field em { font-size: 10px; }.vocab-control > span b { font-size: 24px; }.vocab-control small { font-size: 10px; }
+.reactor-head { grid-template-columns: minmax(0, 1fr) 330px; }.reactor-head .algorithm-identity p { font-size: 14px; }.algorithm-tags span { font-size: 10px; }
+.reactor-dials { align-self: center; }.reactor-dials > span { min-height: 98px; padding: 11px 5px; }.reactor-dials small { color: #9ab0b8; font: 700 11px "Microsoft YaHei", sans-serif; letter-spacing: .08em; }.reactor-dials b { margin: 7px 0 2px; font-size: 30px; }.reactor-dials em { color: #678590; font: normal 10px ui-monospace, Consolas, monospace; }
+.reactor-progress { height: 40px; }.reactor-progress span { padding: 0 18px; font: 800 12px "Microsoft YaHei", sans-serif; letter-spacing: .03em; }
+.reactor-grid section > header span { font-size: 13px; }.reactor-grid section > header b { font-size: 9px; }.segment-row > b { font-size: 11px; }.segment-token { font-size: 12px; }.candidate-row code { font-size: 12px; }.candidate-row span { font-size: 11px; }
+.round-event[hidden] { display: none; }.round-event:not([hidden]) { min-height: 74px; grid-template-columns: 125px 220px 1fr; animation: actionDockReveal .35s ease both; }.round-event > span { font-size: 10px; }.round-event > b { font-size: 16px; }.round-event > p { font-size: 12px; }
+.vocab-chamber { min-height: 280px; grid-template-rows: auto auto 1fr auto; }.vocab-chamber > .machine-cap { grid-row: 1; }.vocab-summary { grid-row: 2; margin-top: 4px; }.vocab-summary span { font-size: 12px; }.vocab-summary b { font-size: 18px; }
+.vocab-chamber .trainer-hint { grid-column: 1; grid-row: 3; min-height: 0; margin: 0; padding: 12px; color: #b7c6cb; font-size: 11px; line-height: 1.7; }.algorithm-caution { grid-row: 4; }
+.vocab-grid, .learned-preview, .training-log { grid-row: 1 / 5; }.learned-preview > span, .training-log > span { color: #afc1c7; font: 700 12px "Microsoft YaHei", sans-serif; letter-spacing: .02em; }.learned-preview > span b { display: block; color: #e9cf91; font-size: 14px; }.learned-preview > span small { display: block; margin-top: 5px; color: #718c96; font-size: 10px; font-weight: 500; line-height: 1.5; }.learned-preview > div, .training-log ol { min-height: 180px; }
+.vocab-chip, .preview-token { font-size: 12px; }.training-log ol { font-size: 11px; }.algorithm-caution { font-size: 11px; }
+.trainer-method-note { font-size: 13px; }.sentencepiece-note p { font-size: 14px; }
+
 @keyframes labTokenReveal { from { opacity: 0; transform: translateY(14px) scale(.75); filter: brightness(1.8); } }
 @keyframes timelineReveal { from { opacity: 0; transform: translateX(-14px); } }
 @keyframes reactorSweep { to { transform: translateX(110%); } }
 @keyframes fusionFlash { 0% { transform: scale(.72); filter: brightness(2.2); } 55% { transform: scale(1.08); } }
 @keyframes reactorFire { 0%,100% { box-shadow: none; } 38% { box-shadow: inset 0 0 70px #42dff52c, 0 0 20px #42dff52b; } }
 @keyframes progressFlash { from { left: -90px; } to { left: 110%; } }
+@keyframes actionDockReveal { from { opacity: 0; transform: translateY(-9px); } }
 
 @keyframes scannerSweep { 0% { left: -25%; } 100% { left: 110%; } }
 @keyframes typeReveal { from { opacity: 0; transform: translateY(7px) scale(.85); } }

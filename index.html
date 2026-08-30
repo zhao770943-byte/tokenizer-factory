@@ -167,7 +167,7 @@
       <section class="subword-foundry" id="subwordTrainer" aria-labelledby="subwordTitle">
         <header class="foundry-title">
           <div><span>SUBWORD FOUNDRY · TRAINABLE MINIATURE ENGINE</span><h3 id="subwordTitle">Subword 可训练小型实验机</h3></div>
-          <p>输入迷你训练语料并设定目标词表，单步观察 Pair 合并或候选剪枝；这里展示的是训练过程，而不只是最终切分结果。</p>
+          <p>输入迷你训练语料并设定训练轮数，单步观察 Pair 合并或候选剪枝；这里展示的是训练过程，而不只是最终切分结果。</p>
         </header>
 
         <div class="algorithm-selector" role="tablist" aria-label="四种子词算法">
@@ -195,10 +195,10 @@ new newer newest
 wide wider widest
 token token tokenizer tokenization</textarea>
             </label>
-            <label class="vocab-control" for="targetVocab">
-              <span>目标词表大小 <b id="targetVocabValue">28</b></span>
-              <input id="targetVocab" type="range" min="8" max="64" value="28" step="1">
-              <small><i>8</i><i>词表越小，切分越细</i><i>64</i></small>
+            <label class="vocab-control" for="trainingRounds">
+              <span>计划训练轮数 <b id="trainingRoundsValue">14 轮</b></span>
+              <input id="trainingRounds" type="range" min="1" max="30" value="14" step="1">
+              <small><i>1 轮</i><i>每轮只合并或剪除一个候选</i><i>30 轮</i></small>
             </label>
             <div class="trainer-actions">
               <button id="initializeTrainer"><span>01</span>初始化</button>
@@ -206,7 +206,6 @@ token token tokenizer tokenization</textarea>
               <button id="autoTrainer"><span>▶</span>自动训练</button>
               <button id="undoTrainer"><span>↶</span>回退</button>
             </div>
-            <p class="trainer-hint" id="trainerHint">先初始化：机器会从训练语料建立基础符号与统计表。</p>
           </aside>
 
           <section class="trainer-reactor" aria-live="polite">
@@ -218,9 +217,9 @@ token token tokenizer tokenization</textarea>
                 <div class="algorithm-tags" id="algorithmTags"></div>
               </div>
               <div class="reactor-dials" aria-label="训练状态">
-                <span><small>ROUND</small><b id="trainerRound">00</b></span>
-                <span><small>VOCAB</small><b id="trainerVocabSize">--</b></span>
-                <span><small>TARGET</small><b id="trainerTarget">28</b></span>
+                <span><small>已完成</small><b id="trainerRound">00</b><em>轮</em></span>
+                <span><small>当前词表</small><b id="trainerVocabSize">--</b><em>Token</em></span>
+                <span><small>剩余动作</small><b id="trainerRemaining">14</b><em>轮</em></span>
               </div>
             </header>
             <div class="reactor-progress"><i id="trainerProgress"></i><span id="trainerStatus">等待装料</span></div>
@@ -234,18 +233,17 @@ token token tokenizer tokenization</textarea>
                 <div id="candidateList" class="candidate-list"><p>尚无统计数据</p></div>
               </section>
             </div>
-            <div class="round-event" id="roundEvent">
-              <span>本轮机械动作</span><b>STANDBY</b><p>初始化后，每一轮的选择依据会显示在这里。</p>
-            </div>
+            <div class="round-event" id="roundEvent" hidden></div>
           </section>
 
           <aside class="vocab-chamber">
             <div class="machine-cap"><i></i><span>MODEL OUTPUT</span><b>词表成品仓</b></div>
             <div class="vocab-summary"><span>当前词表</span><b id="vocabSummary">0 枚 Token</b></div>
+            <p class="trainer-hint" id="trainerHint">初始化后，这里会说明基础符号和计划执行的动作。</p>
             <div class="vocab-grid" id="learnedVocab"><p>等待训练</p></div>
             <div class="learned-preview">
-              <span>用当前词表试切</span>
-              <div id="trainedPreview"><p>初始化后将使用上方实验室文本进行试切。</p></div>
+              <span><b>训练后的分词预览</b><small>用刚训练出的词表重新切分上方示例文本</small></span>
+              <div id="trainedPreview"><p>初始化后，这里会展示训练结果如何改变分词。</p></div>
             </div>
             <div class="training-log">
               <span>训练记录</span>

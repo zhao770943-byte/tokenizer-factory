@@ -715,12 +715,12 @@ function mergeSymbols(symbols, left, right, merged) {
   return next;
 }
 
-function buildMergeState(algorithm, words, target) {
+function buildMergeState(algorithm, words, plannedRounds) {
   const rows = words.map(word => ({ ...word, symbols: initialSymbols(word.text, algorithm) }));
   const baseVocab = [...new Set(rows.flatMap(row => row.symbols))].sort((a, b) => a.localeCompare(b));
   return {
     kind: 'merge', algorithm, words: rows, baseVocab, vocab: [...baseVocab], merges: [],
-    round: 0, target: Math.max(target, baseVocab.length), initialVocabSize: baseVocab.length,
+    round: 0, plannedRounds, target: baseVocab.length + plannedRounds, initialVocabSize: baseVocab.length,
     log: [], lastEvent: null, ranking: []
   };
 }
@@ -811,7 +811,7 @@ function unigramRanking(state) {
   }).sort((a, b) => a.impact - b.impact || a.probability - b.probability || a.frequency - b.frequency || a.token.localeCompare(b.token));
 }
 
-function buildUnigramState(words, target) {
+function buildUnigramState(words, requestedRounds) {
   const counts = new Map();
   const forced = new Set();
   words.forEach(row => {
@@ -822,10 +822,11 @@ function buildUnigramState(words, target) {
   const optional = [...counts].filter(([token]) => !forced.has(token)).map(([token, rawFrequency]) => ({ token, rawFrequency, forced: false }))
     .sort((a, b) => (b.rawFrequency * [...b.token].length) - (a.rawFrequency * [...a.token].length)).slice(0, Math.max(0, 96 - forcedCandidates.length));
   const candidates = [...forcedCandidates, ...optional].map(item => ({ ...item, weight: item.rawFrequency * Math.pow([...item.token].length, 1.18), prob: 0 }));
+  const plannedRounds = Math.min(requestedRounds, Math.max(0, candidates.length - forced.size));
   normalizeCandidateProbabilities(candidates);
   const state = {
     kind: 'unigram', algorithm: 'unigram', words, candidates, baseVocab: [...forced], round: 0,
-    target: Math.max(target, forced.size), initialVocabSize: candidates.length, log: [], lastEvent: null, ranking: []
+    plannedRounds, target: candidates.length - plannedRounds, initialVocabSize: candidates.length, log: [], lastEvent: null, ranking: []
   };
   reestimateUnigram(state);
   state.ranking = unigramRanking(state);
@@ -835,7 +836,7 @@ function buildUnigramState(words, target) {
 function currentVocabSize(state = trainerState) { return !state ? 0 : state.kind === 'unigram' ? state.candidates.length : state.vocab.length; }
 function trainerComplete(state = trainerState) {
   if (!state) return true;
-  return state.kind === 'unigram' ? currentVocabSize(state) <= state.target || !state.ranking.length : currentVocabSize(state) >= state.target || !state.ranking.length;
+  return state.round >= state.plannedRounds || !state.ranking.length;
 }
 
 function snapshotTrainer() { trainerSnapshots.push(JSON.stringify(trainerState)); }
@@ -850,7 +851,7 @@ function displayTrainingToken(token) {
 function initializeTrainingMachine() {
   stopTrainerAuto();
   const words = trainingWords($('#trainingCorpus').value);
-  const requestedTarget = Number($('#targetVocab').value);
+  const requestedRounds = Number($('#trainingRounds').value);
   trainerSnapshots = [];
   if (!words.length) {
     trainerState = null;
@@ -859,12 +860,12 @@ function initializeTrainingMachine() {
     return;
   }
   trainerState = subwordAlgorithm === 'unigram'
-    ? buildUnigramState(words, requestedTarget)
-    : buildMergeState(subwordAlgorithm, words, requestedTarget);
+    ? buildUnigramState(words, requestedRounds)
+    : buildMergeState(subwordAlgorithm, words, requestedRounds);
   if (trainerState.kind === 'merge') trainerState.ranking = mergeRanking(trainerState);
   $('#trainerHint').textContent = trainerState.kind === 'unigram'
-    ? `已生成 ${trainerState.initialVocabSize} 个候选；字符保底项不会被剪除。`
-    : `已建立 ${trainerState.baseVocab.length} 个基础符号；每轮只合并一个胜出 Pair。`;
+    ? `初始候选 ${trainerState.initialVocabSize} 个；字符保底项不会被剪除，计划剪枝 ${trainerState.plannedRounds} 轮。`
+    : `基础符号 ${trainerState.baseVocab.length} 个；每轮新增 1 个 Token，计划合并 ${trainerState.plannedRounds} 轮。`;
   renderTrainer();
 }
 
@@ -949,6 +950,7 @@ function renderCandidates() {
 function inspectCandidate(index) {
   const item = trainerState?.ranking[index];
   if (!item) return;
+  $('#roundEvent').hidden = false;
   $$('.candidate-row').forEach((row, rowIndex) => row.classList.toggle('inspected', rowIndex === index));
   if (trainerState.kind === 'unigram') {
     $('#roundEvent').innerHTML = `<span>候选检查 · RANK ${String(index + 1).padStart(2, '0')}</span><b>PRUNE ${safe(item.token)}</b><p>若现在移除它，语料负对数似然上升 ${item.impact.toFixed(3)}。ΔNLL 越小，说明越容易被其他候选替代；训练只会自动剪掉排行榜第 1 名。</p>`;
@@ -972,7 +974,19 @@ function renderLearnedVocab() {
 
 function renderTrainedPreview() {
   const tokens = learnedTokenize($('#labText').value).slice(0, 30);
-  $('#trainedPreview').innerHTML = tokens.length ? tokens.map((token, index) => `<span class="preview-token" title="试切 Token ${index + 1}">${safe(displayTrainingToken(token))}</span>`).join('') : '<p>初始化后将使用上方实验室文本进行试切。</p>';
+  $('#trainedPreview').innerHTML = tokens.length ? tokens.map((token, index) => `<span class="preview-token" title="训练后分词 ${index + 1}">${safe(displayTrainingToken(token))}</span>`).join('') : '<p>初始化后，这里会展示训练结果如何改变分词。</p>';
+}
+
+function nextRoundMessage(state) {
+  if (!state) return '输入语料后点击“初始化”';
+  if (trainerComplete(state)) return `已完成 ${state.round} 轮训练 · 可以回退或调整计划轮数`;
+  const next = state.ranking[0];
+  if (!next) return '当前没有可继续处理的候选';
+  if (state.kind === 'unigram') return `下一轮：剪除「${next.token}」 · ΔNLL ${next.impact.toFixed(3)}`;
+  const pair = `${displayTrainingToken(next.left)} + ${displayTrainingToken(next.right)}`;
+  return state.algorithm === 'wordpiece'
+    ? `下一轮：合并「${pair}」 · 得分 ${next.score.toFixed(4)}`
+    : `下一轮：合并「${pair}」 · 出现 ${next.frequency} 次`;
 }
 
 function pulseTrainer() {
@@ -986,15 +1000,14 @@ function pulseTrainer() {
 function renderTrainer() {
   const state = trainerState;
   const size = currentVocabSize(state);
-  const target = state?.target || Number($('#targetVocab').value);
+  const plannedRounds = state?.plannedRounds ?? Number($('#trainingRounds').value);
+  const remainingRounds = Math.max(0, plannedRounds - (state?.round || 0));
   $('#trainerRound').textContent = String(state?.round || 0).padStart(2, '0');
   $('#trainerVocabSize').textContent = state ? String(size) : '--';
-  $('#trainerTarget').textContent = String(target);
-  const progress = !state ? 0 : state.kind === 'unigram'
-    ? (state.initialVocabSize === target ? 100 : (state.initialVocabSize - size) / Math.max(1, state.initialVocabSize - target) * 100)
-    : (target === state.initialVocabSize ? 100 : (size - state.initialVocabSize) / Math.max(1, target - state.initialVocabSize) * 100);
+  $('#trainerRemaining').textContent = String(remainingRounds).padStart(2, '0');
+  const progress = !state ? 0 : state.round / Math.max(1, plannedRounds) * 100;
   $('#trainerProgress').style.width = `${Math.max(0, Math.min(100, progress))}%`;
-  $('#trainerStatus').textContent = !state ? '等待装料' : trainerComplete(state) ? '目标词表已到达 · TRAINING COMPLETE' : `训练中 · ${state.kind === 'unigram' ? '逐轮剪枝' : '逐轮合并'}`;
+  $('#trainerStatus').textContent = nextRoundMessage(state);
   $('#trainerShell').classList.toggle('training-complete', Boolean(state && trainerComplete(state)));
   $('#stepTrainer').disabled = !state || trainerComplete(state);
   $('#undoTrainer').disabled = trainerSnapshots.length === 0;
@@ -1002,8 +1015,8 @@ function renderTrainer() {
   renderCandidates();
   renderLearnedVocab();
   renderTrainedPreview();
-  if (state?.lastEvent) $('#roundEvent').innerHTML = `<span>本轮机械动作</span><b>${safe(state.lastEvent.action)}</b><p>${safe(state.lastEvent.detail)}</p>`;
-  else $('#roundEvent').innerHTML = '<span>本轮机械动作</span><b>STANDBY</b><p>点击“训练一轮”，观察机器根据统计分数选择合并或剪枝对象。</p>';
+  $('#roundEvent').hidden = !state?.lastEvent;
+  if (state?.lastEvent) $('#roundEvent').innerHTML = `<span>第 ${state.round} 轮结果</span><b>${safe(state.lastEvent.action)}</b><p>${safe(state.lastEvent.detail)}</p>`;
   $('#trainingLog').innerHTML = state?.log.length ? state.log.slice(0, 7).map(item => `<li>${safe(item)}</li>`).join('') : '<li>等待第 1 轮</li>';
 }
 
@@ -1038,16 +1051,20 @@ $('#trainingCorpus').addEventListener('input', () => {
   $('#trainerHint').textContent = '语料已改变，请重新初始化训练机。';
   renderTrainer();
 });
-$('#targetVocab').addEventListener('input', () => {
-  const requested = Number($('#targetVocab').value);
-  $('#targetVocabValue').textContent = String(requested);
+$('#trainingRounds').addEventListener('input', () => {
+  const requested = Number($('#trainingRounds').value);
+  $('#trainingRoundsValue').textContent = `${requested} 轮`;
   if (trainerState) {
-    trainerState.target = Math.max(requested, trainerState.baseVocab.length);
-    $('#trainerHint').textContent = trainerState.target !== requested
-      ? `基础符号已有 ${trainerState.baseVocab.length} 个，有效目标自动调整为 ${trainerState.target}。`
-      : `目标词表已调整为 ${trainerState.target}。`;
-    if (trainerState.kind === 'unigram') trainerState.ranking = unigramRanking(trainerState);
-    else trainerState.ranking = mergeRanking(trainerState);
+    if (trainerState.kind === 'unigram') {
+      const maximum = Math.max(0, trainerState.initialVocabSize - trainerState.baseVocab.length);
+      trainerState.plannedRounds = Math.min(requested, maximum);
+      trainerState.target = trainerState.initialVocabSize - trainerState.plannedRounds;
+      $('#trainerHint').textContent = `初始候选 ${trainerState.initialVocabSize} 个；计划剪枝 ${trainerState.plannedRounds} 轮，每轮移除 1 个候选。`;
+    } else {
+      trainerState.plannedRounds = requested;
+      trainerState.target = trainerState.initialVocabSize + requested;
+      $('#trainerHint').textContent = `基础符号 ${trainerState.baseVocab.length} 个；计划合并 ${requested} 轮，每轮新增 1 个 Token。`;
+    }
   }
   renderTrainer();
 });
