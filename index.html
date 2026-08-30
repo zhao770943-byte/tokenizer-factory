@@ -161,8 +161,8 @@
 
       <section class="subword-foundry" aria-labelledby="subwordTitle">
         <header class="foundry-title">
-          <div><span>SUBWORD FOUNDRY · FOUR PROCESS ROUTES</span><h3 id="subwordTitle">Subword 四种加工路线</h3></div>
-          <p>点击算法卡片，观察同一个词如何经历合并、匹配或概率剪枝。</p>
+          <div><span>SUBWORD FOUNDRY · TRAINABLE MINIATURE ENGINE</span><h3 id="subwordTitle">Subword 可训练小型实验机</h3></div>
+          <p>输入迷你训练语料并设定目标词表，单步观察 Pair 合并或候选剪枝；这里展示的是训练过程，而不只是最终切分结果。</p>
         </header>
 
         <div class="algorithm-selector" role="tablist" aria-label="四种子词算法">
@@ -180,20 +180,77 @@
           </button>
         </div>
 
-        <div class="algorithm-workbench">
-          <div class="algorithm-identity">
-            <span id="algorithmSerial">ROUTE 01</span>
-            <h4 id="algorithmName">BPE · Byte Pair Encoding</h4>
-            <p id="algorithmDefinition">从字符或基础符号开始，统计训练语料中最常见的相邻对，将其合并成新符号；重复直到达到目标词表规模。</p>
-            <div class="algorithm-tags" id="algorithmTags"></div>
-          </div>
-          <div class="algorithm-timeline" id="algorithmTimeline" aria-live="polite"></div>
-          <div class="algorithm-result">
-            <span>最终教学示意</span>
-            <div id="algorithmResult"></div>
-            <p id="algorithmCaution">真实结果由模型自己的 merge rules 与词表决定。</p>
-          </div>
+        <div class="trainer-shell" id="trainerShell">
+          <aside class="trainer-control">
+            <div class="machine-cap"><i></i><span>TRAINING MATERIAL</span><b>语料装料仓</b></div>
+            <label class="corpus-field" for="trainingCorpus">
+              <span>迷你训练语料 <em id="corpusCounter">0 / 280</em></span>
+              <textarea id="trainingCorpus" maxlength="280" spellcheck="false">low lower lowest
+new newer newest
+wide wider widest
+token token tokenizer tokenization</textarea>
+            </label>
+            <label class="vocab-control" for="targetVocab">
+              <span>目标词表大小 <b id="targetVocabValue">28</b></span>
+              <input id="targetVocab" type="range" min="8" max="64" value="28" step="1">
+              <small><i>8</i><i>词表越小，切分越细</i><i>64</i></small>
+            </label>
+            <div class="trainer-actions">
+              <button id="initializeTrainer"><span>01</span>初始化</button>
+              <button id="stepTrainer" class="primary"><span>02</span>训练一轮</button>
+              <button id="autoTrainer"><span>▶</span>自动训练</button>
+              <button id="undoTrainer"><span>↶</span>回退</button>
+            </div>
+            <p class="trainer-hint" id="trainerHint">先初始化：机器会从训练语料建立基础符号与统计表。</p>
+          </aside>
+
+          <section class="trainer-reactor" aria-live="polite">
+            <header class="reactor-head">
+              <div class="algorithm-identity">
+                <span id="algorithmSerial">ROUTE 01</span>
+                <h4 id="algorithmName">BPE · Byte Pair Encoding</h4>
+                <p id="algorithmDefinition">统计训练语料中最常见的相邻对，每轮把胜出的 Pair 合并为新 Token。</p>
+                <div class="algorithm-tags" id="algorithmTags"></div>
+              </div>
+              <div class="reactor-dials" aria-label="训练状态">
+                <span><small>ROUND</small><b id="trainerRound">00</b></span>
+                <span><small>VOCAB</small><b id="trainerVocabSize">--</b></span>
+                <span><small>TARGET</small><b id="trainerTarget">28</b></span>
+              </div>
+            </header>
+            <div class="reactor-progress"><i id="trainerProgress"></i><span id="trainerStatus">等待装料</span></div>
+            <div class="reactor-grid">
+              <section class="corpus-viewport">
+                <header><span>当前语料切分状态</span><b>CORPUS SEGMENTS</b></header>
+                <div id="corpusSegments" class="segment-rows"><p>点击“初始化”，把语料送入训练机。</p></div>
+              </section>
+              <section class="candidate-rack">
+                <header><span id="candidateTitle">高频 Pair 排行</span><b id="candidateMetric">FREQUENCY</b></header>
+                <div id="candidateList" class="candidate-list"><p>尚无统计数据</p></div>
+              </section>
+            </div>
+            <div class="round-event" id="roundEvent">
+              <span>本轮机械动作</span><b>STANDBY</b><p>初始化后，每一轮的选择依据会显示在这里。</p>
+            </div>
+          </section>
+
+          <aside class="vocab-chamber">
+            <div class="machine-cap"><i></i><span>MODEL OUTPUT</span><b>词表成品仓</b></div>
+            <div class="vocab-summary"><span>当前词表</span><b id="vocabSummary">0 枚 Token</b></div>
+            <div class="vocab-grid" id="learnedVocab"><p>等待训练</p></div>
+            <div class="learned-preview">
+              <span>用当前词表试切</span>
+              <div id="trainedPreview"><p>初始化后将使用上方实验室文本进行试切。</p></div>
+            </div>
+            <div class="training-log">
+              <span>训练记录</span>
+              <ol id="trainingLog"><li>等待第 1 轮</li></ol>
+            </div>
+            <p class="algorithm-caution" id="algorithmCaution">这是小语料教学机；真实训练会使用大规模语料、规范化规则与更完整的目标函数。</p>
+          </aside>
         </div>
+
+        <p class="trainer-method-note"><b>如何读这台机器：</b><span>BPE / Byte-level BPE 每轮选择出现次数最多的相邻 Pair；WordPiece 实验路线比较 Pair 频次与组成符号频次的比值；Unigram 从大候选词表出发，逐个移除使语料负对数似然上升最少的候选。后两者为适合课堂观察的微型近似实现，界面会明确显示评分依据。</span></p>
 
         <div class="sentencepiece-note">
           <b>概念校准：SentencePiece 是什么？</b>

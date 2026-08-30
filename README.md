@@ -6,6 +6,14 @@
 
 **[https://tokenizer-factory.pages.dev/](https://tokenizer-factory.pages.dev/)**
 
+## 网站效果
+
+![Tokenizer 加工厂五工位动态流水线](assets/readme-factory-preview.png)
+
+从首页继续向下滚动，即可进入可训练的 Subword 实验机：
+
+![Subword 可训练小型实验机](assets/readme-training-lab.png)
+
 ## 当前教学内容
 
 ### Tokenizer 五道加工工序
@@ -24,10 +32,22 @@
 
 ### 四种子词方案
 
-- **BPE**：从小单元出发，反复合并高频相邻对。
-- **Byte-level BPE**：以 UTF-8 字节作为保底字母表，再执行 BPE 合并，可覆盖任意文本。
-- **WordPiece**：通过词表与得分选择子词，编码时常用最长匹配，延续片段常写成 `##piece`。
-- **Unigram Language Model**：先建立较大的候选词表，再依据概率逐步剪枝，并选择高概率切分路径。
+- **BPE**：真实统计迷你语料中的相邻 Pair 频次，每轮合并当前最高频 Pair。
+- **Byte-level BPE**：先把语料变成 UTF-8 字节符号，再运行同一套逐轮 Pair 合并实验。
+- **WordPiece**：用 `pair_freq / (left_freq × right_freq)` 的课堂可观察评分近似训练过程，逐轮选择更具组合价值的 Pair。
+- **Unigram Language Model**：从较大的候选集合出发，比较移除候选前后的语料负对数似然，逐轮剪除 `ΔNLL` 最小的候选。
+
+### 可训练小型实验机
+
+用户可以直接修改多行迷你训练语料，并调节目标词表大小。实验机提供：
+
+- 初始化、训练一轮、自动训练、暂停与逐轮回退。
+- 当前语料切分状态和每个词的出现次数。
+- BPE / Byte-level BPE 的高频 Pair 排行。
+- WordPiece 的 Pair 训练得分排行。
+- Unigram 的候选剪枝顺序与 `ΔNLL` 依据。
+- 当前词表、每轮机械动作、训练日志和“用当前词表试切”结果。
+- 基础符号数量超过用户目标时自动保护字符兜底，避免产生无法编码的词表。
 
 > **教学说明：** 页面中的 Token、ID 与向量用于解释原理，不代表某个线上模型的真实词表结果。真实切分会随模型、训练语料、词表大小、预处理规则和特殊 Token 配置而变化。
 
@@ -44,7 +64,8 @@
 - ID → Embedding 向量化动画。
 - 分步预览、自动演示和重置。
 - Word / Character / Subword 三种粒度对比。
-- BPE、Byte-level BPE、WordPiece、Unigram 互动拆解。
+- BPE、Byte-level BPE、WordPiece、Unigram 可训练微型实验。
+- 词表大小可调、单步训练、自动训练、暂停和回退。
 
 ## 项目结构
 
@@ -55,7 +76,9 @@ tokenizer-factory/
 ├─ cinematic-belt.js
 ├─ README.md
 └─ assets/
-   └─ tokenizer-factory-cinematic-v1.png
+   ├─ tokenizer-factory-cinematic-v1.png
+   ├─ readme-factory-preview.png
+   └─ readme-training-lab.png
 ```
 
 项目为纯静态 HTML、CSS 与 JavaScript，不依赖前端框架、数据库或构建工具。
@@ -95,6 +118,8 @@ npx wrangler pages deploy . --project-name tokenizer-factory
 - [x] Tokenizer 五工位动态流水线
 - [x] Word / Character / Subword 粒度教学
 - [x] 四种子词方案互动拆解
+- [x] BPE 高频 Pair 逐轮合并训练机
+- [x] Unigram 候选逐轮剪枝训练机
 - [ ] 真实模型 tokenizer 对照实验
 - [ ] Embedding 向量车间
 - [ ] Position Encoding 装配站
@@ -105,4 +130,3 @@ npx wrangler pages deploy . --project-name tokenizer-factory
 ## 版权说明
 
 本仓库当前未附加开源许可证，默认保留相关权利。在线演示可用于学习和评估；复制、分发、改编或商业使用前，请先获得项目所有者许可。
-

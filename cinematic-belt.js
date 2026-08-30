@@ -662,37 +662,6 @@ function renderMode(mode = tokenizerMode) {
   renderLabTokens(tokens);
 }
 
-function timelineForAlgorithm(algorithm, sample) {
-  const pieces = splitLatinSubword(sample);
-  const chars = [...sample].join(' · ');
-  if (algorithm === 'bytebpe') {
-    const bytes = [...new TextEncoder().encode(sample)].map(byte => byte.toString(16).toUpperCase().padStart(2, '0')).join(' ');
-    return [
-      ['编码', '文本 → UTF-8', bytes],
-      ['映射', '字节作为基础单元', [...sample].join(' | ')],
-      ['合并', '按 merge rank 融合', pieces.join(' + ')]
-    ];
-  }
-  if (algorithm === 'wordpiece') return [
-    ['装载', '待编码词', sample],
-    ['匹配', '从当前位置查最长词片', pieces.map((part, index) => index ? `##${part}` : part).join(' | ')],
-    ['完成', '全部字符被词表覆盖', pieces.map((part, index) => index ? `##${part}` : part).join(' + ')]
-  ];
-  if (algorithm === 'unigram') {
-    const alternative = pieces.length > 1 ? [pieces[0], pieces.slice(1).join('')].join(' + ') : [...sample].join(' + ');
-    return [
-      ['候选', '建立多条切分路径', `${pieces.join(' + ')}  /  ${alternative}`],
-      ['评分', '计算路径概率（示意）', 'P(path A)=0.42  >  P(path B)=0.17'],
-      ['选择', 'Viterbi / 最佳路径', pieces.join(' + ')]
-    ];
-  }
-  return [
-    ['初始', '基础符号序列', chars],
-    ['统计', '寻找高频相邻对', `${pieces[0] || sample}  ← pair merge`],
-    ['重复', '按规则持续合并', pieces.join(' + ')]
-  ];
-}
-
 function renderAlgorithm(algorithm = subwordAlgorithm) {
   subwordAlgorithm = algorithm;
   const info = ALGORITHM_INFO[algorithm];
@@ -706,14 +675,310 @@ function renderAlgorithm(algorithm = subwordAlgorithm) {
   $('#algorithmDefinition').textContent = info.definition;
   $('#algorithmTags').innerHTML = info.tags.map(tag => `<span>${safe(tag)}</span>`).join('');
   $('#algorithmCaution').textContent = info.caution;
-  const sampleMatch = $('#labText').value.match(/[A-Za-z]{5,}/);
-  const sample = sampleMatch ? sampleMatch[0] : 'tokenizer';
-  const timeline = timelineForAlgorithm(algorithm, sample);
-  $('#algorithmTimeline').innerHTML = timeline.map(([label, action, result], index) => `
-    <div class="timeline-step" style="--step-index:${index}"><b>${index + 1}</b><span>${safe(label)} · ${safe(action)}</span><code>${safe(result)}</code></div>
-  `).join('');
-  const tokens = tokenizeForLab($('#labText').value, 'subword', algorithm);
-  $('#algorithmResult').innerHTML = tokens.slice(0, 18).map(token => `<b>${safe(token)}</b>`).join('');
+}
+
+let trainerState = null;
+let trainerSnapshots = [];
+let trainerTimer = null;
+
+function stopTrainerAuto() {
+  if (trainerTimer) clearInterval(trainerTimer);
+  trainerTimer = null;
+  $('#autoTrainer').innerHTML = '<span>▶</span>自动训练';
+}
+
+function trainingWords(text) {
+  const matches = text.toLowerCase().match(/[a-z]+(?:'[a-z]+)?|\d+|[\u3400-\u9fff]+/gu) || [];
+  const counts = new Map();
+  matches.forEach(word => {
+    const clipped = [...word].slice(0, 24).join('');
+    if (clipped) counts.set(clipped, (counts.get(clipped) || 0) + 1);
+  });
+  return [...counts].map(([textValue, count]) => ({ text: textValue, count }));
+}
+
+function pairKey(left, right) { return JSON.stringify([left, right]); }
+function readPairKey(key) { return JSON.parse(key); }
+function isByteRoute(algorithm = subwordAlgorithm) { return algorithm === 'bytebpe'; }
+function byteSymbols(word) { return [...new TextEncoder().encode(word)].map(byte => byte.toString(16).toUpperCase().padStart(2, '0')); }
+function initialSymbols(word, algorithm) { return ['▁', ...(isByteRoute(algorithm) ? byteSymbols(word) : [...word])]; }
+function fusedToken(left, right, algorithm) { return isByteRoute(algorithm) ? `${left} ${right}` : `${left}${right}`; }
+
+function mergeSymbols(symbols, left, right, merged) {
+  const next = [];
+  for (let index = 0; index < symbols.length; index += 1) {
+    if (symbols[index] === left && symbols[index + 1] === right) {
+      next.push(merged);
+      index += 1;
+    } else next.push(symbols[index]);
+  }
+  return next;
+}
+
+function buildMergeState(algorithm, words, target) {
+  const rows = words.map(word => ({ ...word, symbols: initialSymbols(word.text, algorithm) }));
+  const baseVocab = [...new Set(rows.flatMap(row => row.symbols))].sort((a, b) => a.localeCompare(b));
+  return {
+    kind: 'merge', algorithm, words: rows, baseVocab, vocab: [...baseVocab], merges: [],
+    round: 0, target: Math.max(target, baseVocab.length), initialVocabSize: baseVocab.length,
+    log: [], lastEvent: null, ranking: []
+  };
+}
+
+function mergeRanking(state) {
+  const pairs = new Map();
+  const units = new Map();
+  state.words.forEach(row => {
+    row.symbols.forEach(symbol => units.set(symbol, (units.get(symbol) || 0) + row.count));
+    for (let index = 0; index < row.symbols.length - 1; index += 1) {
+      const key = pairKey(row.symbols[index], row.symbols[index + 1]);
+      pairs.set(key, (pairs.get(key) || 0) + row.count);
+    }
+  });
+  return [...pairs].map(([key, frequency]) => {
+    const [left, right] = readPairKey(key);
+    const score = state.algorithm === 'wordpiece'
+      ? frequency / Math.max(1, (units.get(left) || 1) * (units.get(right) || 1))
+      : frequency;
+    return { left, right, frequency, score };
+  }).sort((a, b) => b.score - a.score || b.frequency - a.frequency || `${a.left}${a.right}`.localeCompare(`${b.left}${b.right}`));
+}
+
+function candidateSubstrings(word) {
+  const chars = [...`▁${word}`];
+  const result = [];
+  for (let start = 0; start < chars.length; start += 1) {
+    for (let length = 1; length <= Math.min(6, chars.length - start); length += 1) result.push(chars.slice(start, start + length).join(''));
+  }
+  return result;
+}
+
+function normalizeCandidateProbabilities(candidates) {
+  const total = candidates.reduce((sum, item) => sum + Math.max(.08, item.weight), 0) || 1;
+  candidates.forEach(item => { item.prob = Math.max(.08, item.weight) / total; });
+}
+
+function segmentWithCandidates(text, candidates, omitted = '') {
+  const chars = [...text];
+  const available = candidates.filter(item => item.token !== omitted);
+  const byFirst = new Map();
+  available.forEach(item => {
+    const first = [...item.token][0];
+    if (!byFirst.has(first)) byFirst.set(first, []);
+    byFirst.get(first).push(item);
+  });
+  byFirst.forEach(items => items.sort((a, b) => [...b.token].length - [...a.token].length));
+  const cost = Array(chars.length + 1).fill(Infinity);
+  const path = Array(chars.length + 1).fill(null);
+  cost[0] = 0;
+  for (let index = 0; index < chars.length; index += 1) {
+    if (!Number.isFinite(cost[index])) continue;
+    const options = byFirst.get(chars[index]) || [];
+    options.forEach(item => {
+      const tokenChars = [...item.token];
+      if (chars.slice(index, index + tokenChars.length).join('') !== item.token) return;
+      const next = index + tokenChars.length;
+      const nextCost = cost[index] - Math.log(Math.max(item.prob, 1e-9));
+      if (nextCost < cost[next]) { cost[next] = nextCost; path[next] = { previous: index, token: item.token }; }
+    });
+  }
+  if (!Number.isFinite(cost[chars.length])) return { tokens: chars, nll: 1e9 };
+  const tokens = [];
+  let cursor = chars.length;
+  while (cursor > 0 && path[cursor]) { tokens.unshift(path[cursor].token); cursor = path[cursor].previous; }
+  return { tokens, nll: cost[chars.length] };
+}
+
+function unigramCorpusNll(state, omitted = '') {
+  return state.words.reduce((sum, row) => sum + segmentWithCandidates(`▁${row.text}`, state.candidates, omitted).nll * row.count, 0);
+}
+
+function reestimateUnigram(state) {
+  const uses = new Map();
+  state.words.forEach(row => {
+    const result = segmentWithCandidates(`▁${row.text}`, state.candidates);
+    result.tokens.forEach(token => uses.set(token, (uses.get(token) || 0) + row.count));
+  });
+  state.candidates.forEach(item => { item.weight = (uses.get(item.token) || 0) + item.rawFrequency * .08 + (item.forced ? .2 : 0); });
+  normalizeCandidateProbabilities(state.candidates);
+}
+
+function unigramRanking(state) {
+  const baseline = unigramCorpusNll(state);
+  return state.candidates.filter(item => !item.forced).map(item => {
+    const without = unigramCorpusNll(state, item.token);
+    return { token: item.token, impact: Math.max(0, without - baseline), probability: item.prob, frequency: item.rawFrequency };
+  }).sort((a, b) => a.impact - b.impact || a.probability - b.probability || a.frequency - b.frequency || a.token.localeCompare(b.token));
+}
+
+function buildUnigramState(words, target) {
+  const counts = new Map();
+  const forced = new Set();
+  words.forEach(row => {
+    [...`▁${row.text}`].forEach(char => forced.add(char));
+    candidateSubstrings(row.text).forEach(token => counts.set(token, (counts.get(token) || 0) + row.count));
+  });
+  const forcedCandidates = [...forced].map(token => ({ token, rawFrequency: counts.get(token) || 1, forced: true }));
+  const optional = [...counts].filter(([token]) => !forced.has(token)).map(([token, rawFrequency]) => ({ token, rawFrequency, forced: false }))
+    .sort((a, b) => (b.rawFrequency * [...b.token].length) - (a.rawFrequency * [...a.token].length)).slice(0, Math.max(0, 96 - forcedCandidates.length));
+  const candidates = [...forcedCandidates, ...optional].map(item => ({ ...item, weight: item.rawFrequency * Math.pow([...item.token].length, 1.18), prob: 0 }));
+  normalizeCandidateProbabilities(candidates);
+  const state = {
+    kind: 'unigram', algorithm: 'unigram', words, candidates, baseVocab: [...forced], round: 0,
+    target: Math.max(target, forced.size), initialVocabSize: candidates.length, log: [], lastEvent: null, ranking: []
+  };
+  reestimateUnigram(state);
+  state.ranking = unigramRanking(state);
+  return state;
+}
+
+function currentVocabSize(state = trainerState) { return !state ? 0 : state.kind === 'unigram' ? state.candidates.length : state.vocab.length; }
+function trainerComplete(state = trainerState) {
+  if (!state) return true;
+  return state.kind === 'unigram' ? currentVocabSize(state) <= state.target || !state.ranking.length : currentVocabSize(state) >= state.target || !state.ranking.length;
+}
+
+function snapshotTrainer() { trainerSnapshots.push(JSON.stringify(trainerState)); }
+function restoreTrainer(snapshot) { trainerState = JSON.parse(snapshot); }
+
+function displayTrainingToken(token) {
+  if (!isByteRoute(trainerState?.algorithm)) return token;
+  if (token === '▁') return '▁';
+  return `${token.startsWith('▁ ') ? '▁' : ''}[${token.replace(/^▁\s*/, '').split(' ').join(' ')}]`;
+}
+
+function initializeTrainingMachine() {
+  stopTrainerAuto();
+  const words = trainingWords($('#trainingCorpus').value);
+  const requestedTarget = Number($('#targetVocab').value);
+  trainerSnapshots = [];
+  if (!words.length) {
+    trainerState = null;
+    $('#trainerHint').textContent = '没有识别到可训练的文字，请至少输入一个汉字、英文词或数字。';
+    renderTrainer();
+    return;
+  }
+  trainerState = subwordAlgorithm === 'unigram'
+    ? buildUnigramState(words, requestedTarget)
+    : buildMergeState(subwordAlgorithm, words, requestedTarget);
+  if (trainerState.kind === 'merge') trainerState.ranking = mergeRanking(trainerState);
+  $('#trainerHint').textContent = trainerState.kind === 'unigram'
+    ? `已生成 ${trainerState.initialVocabSize} 个候选；字符保底项不会被剪除。`
+    : `已建立 ${trainerState.baseVocab.length} 个基础符号；每轮只合并一个胜出 Pair。`;
+  renderTrainer();
+}
+
+function runTrainingRound() {
+  if (!trainerState) initializeTrainingMachine();
+  if (!trainerState || trainerComplete()) { stopTrainerAuto(); renderTrainer(); return false; }
+  snapshotTrainer();
+  if (trainerState.kind === 'unigram') {
+    const selected = trainerState.ranking[0];
+    trainerState.candidates = trainerState.candidates.filter(item => item.token !== selected.token);
+    trainerState.round += 1;
+    reestimateUnigram(trainerState);
+    trainerState.lastEvent = {
+      action: `PRUNE ${selected.token}`,
+      detail: `移除后语料 NLL 仅上升 ${selected.impact.toFixed(3)}；它是当前最可替代的候选。`,
+      token: selected.token
+    };
+    trainerState.log.unshift(`R${trainerState.round} 剪除 ${selected.token} · ΔNLL ${selected.impact.toFixed(3)}`);
+    trainerState.ranking = unigramRanking(trainerState);
+  } else {
+    const selected = trainerState.ranking[0];
+    const merged = fusedToken(selected.left, selected.right, trainerState.algorithm);
+    trainerState.words.forEach(row => { row.symbols = mergeSymbols(row.symbols, selected.left, selected.right, merged); });
+    if (!trainerState.vocab.includes(merged)) trainerState.vocab.push(merged);
+    trainerState.merges.push({ left: selected.left, right: selected.right, merged });
+    trainerState.round += 1;
+    const scoreText = trainerState.algorithm === 'wordpiece' ? `得分 ${selected.score.toFixed(4)}` : `出现 ${selected.frequency} 次`;
+    trainerState.lastEvent = {
+      action: `FUSE ${displayTrainingToken(selected.left)} + ${displayTrainingToken(selected.right)}`,
+      detail: `${scoreText}，合并后生成新 Token「${displayTrainingToken(merged)}」。`, token: merged
+    };
+    trainerState.log.unshift(`R${trainerState.round} ${displayTrainingToken(selected.left)} + ${displayTrainingToken(selected.right)} → ${displayTrainingToken(merged)}`);
+    trainerState.ranking = mergeRanking(trainerState);
+  }
+  renderTrainer();
+  if (trainerComplete()) stopTrainerAuto();
+  return true;
+}
+
+function learnedTokenize(text) {
+  if (!trainerState) return [];
+  const words = trainingWords(text).slice(0, 8);
+  if (trainerState.kind === 'unigram') return words.flatMap(row => segmentWithCandidates(`▁${row.text}`, trainerState.candidates).tokens);
+  return words.flatMap(row => {
+    let symbols = initialSymbols(row.text, trainerState.algorithm);
+    trainerState.merges.forEach(rule => { symbols = mergeSymbols(symbols, rule.left, rule.right, rule.merged); });
+    if (trainerState.algorithm !== 'wordpiece') return symbols;
+    return symbols.filter(token => token !== '▁').map((token, index) => index ? `##${token}` : token.replace(/^▁/, ''));
+  });
+}
+
+function renderSegments() {
+  if (!trainerState) { $('#corpusSegments').innerHTML = '<p>点击“初始化”，把语料送入训练机。</p>'; return; }
+  const rows = trainerState.words.slice(0, 7).map(row => {
+    const symbols = trainerState.kind === 'unigram'
+      ? segmentWithCandidates(`▁${row.text}`, trainerState.candidates).tokens
+      : row.symbols;
+    const highlight = trainerState.lastEvent?.token;
+    return `<div class="segment-row"><b>${safe(row.text)} × ${row.count}</b><div>${symbols.map(token => `<span class="segment-token ${token === highlight ? 'new' : ''}">${safe(displayTrainingToken(token))}</span>`).join('')}</div></div>`;
+  });
+  $('#corpusSegments').innerHTML = rows.join('');
+}
+
+function renderCandidates() {
+  if (!trainerState) { $('#candidateList').innerHTML = '<p>尚无统计数据</p>'; return; }
+  const ranking = trainerState.ranking.slice(0, 7);
+  if (trainerState.kind === 'unigram') {
+    $('#candidateTitle').textContent = '下一批候选剪枝排行';
+    $('#candidateMetric').textContent = 'Δ NLL · LOWER FIRST';
+    const max = Math.max(...ranking.map(item => item.impact), .001);
+    $('#candidateList').innerHTML = ranking.map((item, index) => `<div class="candidate-row" style="--meter:${Math.max(6, item.impact / max * 100)}%"><b>${String(index + 1).padStart(2, '0')}</b><code>${safe(item.token)}</code><span>Δ ${item.impact.toFixed(3)}</span></div>`).join('') || '<p>没有可继续剪除的候选。</p>';
+    return;
+  }
+  const isWordPiece = trainerState.algorithm === 'wordpiece';
+  $('#candidateTitle').textContent = isWordPiece ? 'Pair 训练得分排行' : '高频 Pair 排行';
+  $('#candidateMetric').textContent = isWordPiece ? 'FREQ / LEFT × RIGHT' : 'FREQUENCY';
+  const max = Math.max(...ranking.map(item => item.score), 1);
+  $('#candidateList').innerHTML = ranking.map((item, index) => `<div class="candidate-row" style="--meter:${Math.max(6, item.score / max * 100)}%"><b>${String(index + 1).padStart(2, '0')}</b><code>${safe(displayTrainingToken(item.left))} + ${safe(displayTrainingToken(item.right))}</code><span>${isWordPiece ? item.score.toFixed(4) : `${item.frequency}×`}</span></div>`).join('') || '<p>没有可继续合并的 Pair。</p>';
+}
+
+function renderLearnedVocab() {
+  if (!trainerState) { $('#learnedVocab').innerHTML = '<p>等待训练</p>'; $('#vocabSummary').textContent = '0 枚 Token'; return; }
+  const vocab = trainerState.kind === 'unigram' ? trainerState.candidates.map(item => item.token) : trainerState.vocab;
+  const base = new Set(trainerState.baseVocab);
+  $('#vocabSummary').textContent = `${vocab.length} 枚 Token`;
+  $('#learnedVocab').innerHTML = vocab.slice().sort((a, b) => [...a].length - [...b].length || a.localeCompare(b)).map(token => `<span class="vocab-chip ${base.has(token) ? '' : 'learned'}">${safe(displayTrainingToken(token))}</span>`).join('');
+}
+
+function renderTrainedPreview() {
+  const tokens = learnedTokenize($('#labText').value).slice(0, 30);
+  $('#trainedPreview').innerHTML = tokens.length ? tokens.map(token => `<span class="preview-token">${safe(displayTrainingToken(token))}</span>`).join('') : '<p>初始化后将使用上方实验室文本进行试切。</p>';
+}
+
+function renderTrainer() {
+  const state = trainerState;
+  const size = currentVocabSize(state);
+  const target = state?.target || Number($('#targetVocab').value);
+  $('#trainerRound').textContent = String(state?.round || 0).padStart(2, '0');
+  $('#trainerVocabSize').textContent = state ? String(size) : '--';
+  $('#trainerTarget').textContent = String(target);
+  const progress = !state ? 0 : state.kind === 'unigram'
+    ? (state.initialVocabSize === target ? 100 : (state.initialVocabSize - size) / Math.max(1, state.initialVocabSize - target) * 100)
+    : (target === state.initialVocabSize ? 100 : (size - state.initialVocabSize) / Math.max(1, target - state.initialVocabSize) * 100);
+  $('#trainerProgress').style.width = `${Math.max(0, Math.min(100, progress))}%`;
+  $('#trainerStatus').textContent = !state ? '等待装料' : trainerComplete(state) ? '目标词表已到达 · TRAINING COMPLETE' : `训练中 · ${state.kind === 'unigram' ? '逐轮剪枝' : '逐轮合并'}`;
+  $('#stepTrainer').disabled = !state || trainerComplete(state);
+  $('#undoTrainer').disabled = trainerSnapshots.length === 0;
+  renderSegments();
+  renderCandidates();
+  renderLearnedVocab();
+  renderTrainedPreview();
+  if (state?.lastEvent) $('#roundEvent').innerHTML = `<span>本轮机械动作</span><b>${safe(state.lastEvent.action)}</b><p>${safe(state.lastEvent.detail)}</p>`;
+  else $('#roundEvent').innerHTML = '<span>本轮机械动作</span><b>STANDBY</b><p>点击“训练一轮”，观察机器根据统计分数选择合并或剪枝对象。</p>';
+  $('#trainingLog').innerHTML = state?.log.length ? state.log.slice(0, 7).map(item => `<li>${safe(item)}</li>`).join('') : '<li>等待第 1 轮</li>';
 }
 
 function runTokenizerLab() {
@@ -727,14 +992,53 @@ function runTokenizerLab() {
 
 $$('.mode-tab').forEach(button => button.addEventListener('click', () => renderMode(button.dataset.mode)));
 $$('.algorithm-card').forEach(button => button.addEventListener('click', () => {
+  stopTrainerAuto();
   renderAlgorithm(button.dataset.algorithm);
   renderMode('subword');
+  initializeTrainingMachine();
 }));
 $('#runLab').addEventListener('click', runTokenizerLab);
 $('#labText').addEventListener('keydown', event => { if (event.key === 'Enter') runTokenizerLab(); });
 $('#labText').addEventListener('input', () => {
   renderMode(tokenizerMode);
-  renderAlgorithm(subwordAlgorithm);
+  renderTrainedPreview();
+});
+
+$('#trainingCorpus').addEventListener('input', () => {
+  stopTrainerAuto();
+  $('#corpusCounter').textContent = `${$('#trainingCorpus').value.length} / 280`;
+  trainerState = null;
+  trainerSnapshots = [];
+  $('#trainerHint').textContent = '语料已改变，请重新初始化训练机。';
+  renderTrainer();
+});
+$('#targetVocab').addEventListener('input', () => {
+  const requested = Number($('#targetVocab').value);
+  $('#targetVocabValue').textContent = String(requested);
+  if (trainerState) {
+    trainerState.target = Math.max(requested, trainerState.baseVocab.length);
+    $('#trainerHint').textContent = trainerState.target !== requested
+      ? `基础符号已有 ${trainerState.baseVocab.length} 个，有效目标自动调整为 ${trainerState.target}。`
+      : `目标词表已调整为 ${trainerState.target}。`;
+    if (trainerState.kind === 'unigram') trainerState.ranking = unigramRanking(trainerState);
+    else trainerState.ranking = mergeRanking(trainerState);
+  }
+  renderTrainer();
+});
+$('#initializeTrainer').addEventListener('click', initializeTrainingMachine);
+$('#stepTrainer').addEventListener('click', runTrainingRound);
+$('#undoTrainer').addEventListener('click', () => {
+  stopTrainerAuto();
+  const snapshot = trainerSnapshots.pop();
+  if (snapshot) restoreTrainer(snapshot);
+  renderTrainer();
+});
+$('#autoTrainer').addEventListener('click', () => {
+  if (trainerTimer) { stopTrainerAuto(); return; }
+  if (!trainerState) initializeTrainingMachine();
+  if (!trainerState || trainerComplete()) return;
+  $('#autoTrainer').innerHTML = '<span>Ⅱ</span>暂停训练';
+  trainerTimer = setInterval(() => { if (!runTrainingRound()) stopTrainerAuto(); }, 360);
 });
 
 const canvas = $('#particleCanvas');
@@ -782,5 +1086,7 @@ refreshPreview();
 resetFactory(false);
 renderMode('subword');
 renderAlgorithm('bpe');
+$('#corpusCounter').textContent = `${$('#trainingCorpus').value.length} / 280`;
+initializeTrainingMachine();
 resizeParticles();
 drawParticles();
