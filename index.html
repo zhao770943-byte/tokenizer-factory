@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#020407">
+  <meta name="description" content="用暗黑机械加工厂动态展示 Tokenizer 完整流程，并互动比较 Word、Character、Subword 与四种子词算法。">
   <title>Tokenizer 加工厂｜动态传送带教学演示</title>
   <link rel="stylesheet" href="cinematic-belt.css">
 </head>
@@ -90,7 +91,126 @@
         <button id="prevStage" title="上一个工位">‹</button>
         <button id="autoDemo">▶ 自动演示</button>
         <button id="nextStage" title="下一个工位">›</button>
+        <a class="lesson-deep-link" href="#tokenizerLab">深入分词策略 ↓</a>
       </div>
+    </section>
+
+    <section class="tokenizer-lab" id="tokenizerLab" aria-labelledby="labTitle">
+      <header class="lab-hero">
+        <div class="lab-badge"><i></i><span>KNOWLEDGE WORKSHOP · 02</span></div>
+        <div>
+          <p class="lab-eyebrow">TOKEN GRANULARITY CONTROL CENTER</p>
+          <h2 id="labTitle"><em>Tokenizer</em> 分词策略实验室</h2>
+          <p>同一段文字可以按词、字符或子词加工。切得越细，词表越容易覆盖；切得越粗，序列通常越短。现代大模型常在两者之间选择 Subword。</p>
+        </div>
+        <div class="lab-principle">
+          <b>核心权衡</b>
+          <span>词表规模</span><i>↔</i><span>序列长度</span><i>↔</i><span>未知词</span>
+        </div>
+      </header>
+
+      <div class="granularity-deck">
+        <aside class="granularity-switcher" aria-label="三类 Tokenizer 粒度">
+          <div class="deck-head"><i></i><span>加工粒度选择</span><b>MODE / 03</b></div>
+          <div class="mode-tabs" role="tablist" aria-label="Tokenizer 粒度模式">
+            <button class="mode-tab" role="tab" aria-selected="false" data-mode="word">
+              <b>01</b><span><strong>Word-based</strong><small>以完整词为单位</small></span><i>词</i>
+            </button>
+            <button class="mode-tab" role="tab" aria-selected="false" data-mode="character">
+              <b>02</b><span><strong>Character-based</strong><small>以字符为单位</small></span><i>字</i>
+            </button>
+            <button class="mode-tab active" role="tab" aria-selected="true" data-mode="subword">
+              <b>03</b><span><strong>Subword-based</strong><small>高频片段与字符兜底</small></span><i>子</i>
+            </button>
+          </div>
+          <div class="mode-gauges" aria-label="当前模式特征">
+            <label><span>词表压力</span><b><i id="vocabGauge"></i></b><em id="vocabValue">中</em></label>
+            <label><span>序列长度</span><b><i id="sequenceGauge"></i></b><em id="sequenceValue">中</em></label>
+            <label><span>未知词风险</span><b><i id="unknownGauge"></i></b><em id="unknownValue">低</em></label>
+          </div>
+        </aside>
+
+        <section class="segmentation-console" aria-label="互动切分控制台">
+          <div class="deck-head"><i></i><span>互动原料台</span><b>LIVE SEGMENTATION</b></div>
+          <div class="lab-input-row">
+            <label for="labText">输入一段文字，比较三种粒度</label>
+            <div><input id="labText" maxlength="96" value="unhappiness Transformer 我喜欢 AI!" spellcheck="false"><button id="runLab">执行切分 <span>➜</span></button></div>
+          </div>
+          <div class="console-route" aria-hidden="true"><span>RAW TEXT</span><i></i><b id="routeMode">SUBWORD UNIT</b><i></i><span>TOKEN SEQUENCE</span></div>
+          <div class="lab-output" id="labOutput" aria-live="polite"></div>
+          <footer class="output-summary">
+            <span><i></i>输出 <b id="labTokenCount">0</b> 个 Token</span>
+            <span id="labModeSummary">兼顾词表覆盖与序列长度</span>
+            <code id="labFormula">词 / 子词 / 字符 → 固定词表</code>
+          </footer>
+        </section>
+
+        <aside class="concept-terminal" aria-live="polite">
+          <div class="deck-head"><i></i><span>工艺说明</span><b>WHY / TRADE-OFF</b></div>
+          <p class="concept-kicker" id="conceptKicker">SUBWORD-BASED</p>
+          <h3 id="conceptTitle">为什么现代 LLM 常用子词？</h3>
+          <p id="conceptDescription">常见片段可以合并成较长 Token，罕见词又能退回到更小单元，因此不需要为每个完整词都准备词表项。</p>
+          <ul id="conceptPoints">
+            <li><b>优势</b><span>开放词表、长度适中、可复用词根词缀</span></li>
+            <li><b>代价</b><span>切分依赖训练语料与具体词表</span></li>
+            <li><b>示例</b><span>un + happi + ness</span></li>
+          </ul>
+          <div class="takeaway"><b>记住</b><p id="conceptTakeaway">Tokenizer 不是按语义“理解”后切词，而是依据已经训练好的词表与规则编码。</p></div>
+        </aside>
+      </div>
+
+      <section class="subword-foundry" aria-labelledby="subwordTitle">
+        <header class="foundry-title">
+          <div><span>SUBWORD FOUNDRY · FOUR PROCESS ROUTES</span><h3 id="subwordTitle">Subword 四种加工路线</h3></div>
+          <p>点击算法卡片，观察同一个词如何经历合并、匹配或概率剪枝。</p>
+        </header>
+
+        <div class="algorithm-selector" role="tablist" aria-label="四种子词算法">
+          <button class="algorithm-card active" role="tab" aria-selected="true" data-algorithm="bpe">
+            <span>01 / MERGE</span><b>BPE</b><small>高频相邻对反复合并</small><i>PAIR FUSION</i>
+          </button>
+          <button class="algorithm-card" role="tab" aria-selected="false" data-algorithm="bytebpe">
+            <span>02 / BYTE</span><b>Byte-level BPE</b><small>UTF-8 字节兜底，再执行合并</small><i>ZERO OOV BASE</i>
+          </button>
+          <button class="algorithm-card" role="tab" aria-selected="false" data-algorithm="wordpiece">
+            <span>03 / MATCH</span><b>WordPiece</b><small>词表得分训练，编码时逐段匹配</small><i>LONGEST MATCH</i>
+          </button>
+          <button class="algorithm-card" role="tab" aria-selected="false" data-algorithm="unigram">
+            <span>04 / PRUNE</span><b>Unigram LM</b><small>候选词表按概率逐步剪枝</small><i>BEST PATH</i>
+          </button>
+        </div>
+
+        <div class="algorithm-workbench">
+          <div class="algorithm-identity">
+            <span id="algorithmSerial">ROUTE 01</span>
+            <h4 id="algorithmName">BPE · Byte Pair Encoding</h4>
+            <p id="algorithmDefinition">从字符或基础符号开始，统计训练语料中最常见的相邻对，将其合并成新符号；重复直到达到目标词表规模。</p>
+            <div class="algorithm-tags" id="algorithmTags"></div>
+          </div>
+          <div class="algorithm-timeline" id="algorithmTimeline" aria-live="polite"></div>
+          <div class="algorithm-result">
+            <span>最终教学示意</span>
+            <div id="algorithmResult"></div>
+            <p id="algorithmCaution">真实结果由模型自己的 merge rules 与词表决定。</p>
+          </div>
+        </div>
+
+        <div class="sentencepiece-note">
+          <b>概念校准：SentencePiece 是什么？</b>
+          <p><strong>SentencePiece 不是第五种独立算法。</strong>它是一个可直接从原始句子训练、语言无关的 tokenizer 工具框架，原生实现了 BPE 与 Unigram；常用 <code>▁</code> 显式表示空格，因此很适合中文、日文等不依赖空格分词的场景。</p>
+        </div>
+      </section>
+
+      <section class="strategy-matrix" aria-labelledby="matrixTitle">
+        <header><span>QUICK COMPARISON</span><h3 id="matrixTitle">三种粒度一眼看懂</h3><p>没有绝对最好的切法，只有与语料、语言和模型目标更匹配的方案。</p></header>
+        <div class="matrix-grid" role="table" aria-label="Tokenizer 粒度对比">
+          <div class="matrix-row matrix-head" role="row"><b>方案</b><b>基本单位</b><b>词表规模</b><b>序列长度</b><b>未知词</b><b>典型问题</b></div>
+          <div class="matrix-row" role="row"><strong>Word-based</strong><span>完整词</span><span>大</span><span>短</span><span class="warn">高</span><span>新词、拼写变化导致 OOV</span></div>
+          <div class="matrix-row" role="row"><strong>Character-based</strong><span>字符 / 码点</span><span>小～中</span><span class="warn">长</span><span>低</span><span>计算量上升，单个 Token 语义弱</span></div>
+          <div class="matrix-row featured" role="row"><strong>Subword-based</strong><span>高频片段 + 小单元兜底</span><span>中</span><span>中</span><span class="good">很低</span><span>需要训练词表，模型之间切分不同</span></div>
+        </div>
+        <p class="matrix-footnote">“低 OOV”不代表所有系统都绝对没有未知 Token；是否完全覆盖取决于基础字母表、字节回退、规范化规则与特殊 Token 配置。</p>
+      </section>
     </section>
   </main>
 

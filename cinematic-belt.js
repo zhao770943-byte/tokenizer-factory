@@ -500,6 +500,243 @@ $('#prevStage').addEventListener('click', () => previewStage(Math.max(0, current
 $('#nextStage').addEventListener('click', () => previewStage(Math.min(4, currentStage + 1)));
 $('#autoDemo').addEventListener('click', runFactory);
 
+const MODE_INFO = {
+  word: {
+    route: 'WORD UNIT', kicker: 'WORD-BASED', title: '一个词就是一个 Token？',
+    description: '按空格、标点或语言分词器得到完整词。序列通常较短，但每个词形都可能占一个词表位置，新词与拼写变化容易落到词表之外。',
+    summary: '完整词直接入库，序列短但词表压力大', formula: '句子 → 完整词 → 词表 ID',
+    gauges: [92, 28, 78], values: ['大', '短', '高'],
+    points: [['优势', 'Token 语义完整，序列通常更短'], ['代价', '词表膨胀，罕见词与新词容易 OOV'], ['示例', 'unhappiness 作为一个完整 Token']],
+    takeaway: '一个单词并不等于一个稳定、通用的模型 Token；不同语言的“词边界”本身就可能很复杂。'
+  },
+  character: {
+    route: 'CHARACTER UNIT', kicker: 'CHARACTER-BASED', title: '字符兜底为什么可靠？',
+    description: '把文字拆到 Unicode 字符或更底层单元。它更容易覆盖新词，但一句话会产生更多 Token，注意力计算和上下文占用随之增加。',
+    summary: '字符覆盖稳定，但序列明显变长', formula: '句子 → 字符 / 码点 → 词表 ID',
+    gauges: [24, 94, 8], values: ['小', '长', '低'],
+    points: [['优势', '词表较小，组合能力强，未知词风险低'], ['代价', '序列长，单个 Token 承载的语义较弱'], ['示例', 'unhappiness → u / n / h / …']],
+    takeaway: 'Character-based 解决了开放词表问题，却把更多计算压力留给了后面的 Transformer。'
+  },
+  subword: {
+    route: 'SUBWORD UNIT', kicker: 'SUBWORD-BASED', title: '为什么现代 LLM 常用子词？',
+    description: '常见片段可以合并成较长 Token，罕见词又能退回到更小单元，因此不需要为每个完整词都准备词表项。',
+    summary: '兼顾词表覆盖与序列长度', formula: '词 / 子词 / 字符 → 固定词表',
+    gauges: [55, 55, 12], values: ['中', '中', '低'],
+    points: [['优势', '开放词表、长度适中、可复用词根词缀'], ['代价', '切分依赖训练语料与具体词表'], ['示例', 'un + happi + ness']],
+    takeaway: 'Tokenizer 不是按语义“理解”后切词，而是依据已经训练好的词表与规则编码。'
+  }
+};
+
+const ALGORITHM_INFO = {
+  bpe: {
+    serial: 'ROUTE 01', name: 'BPE · Byte Pair Encoding',
+    definition: '从字符或基础符号开始，统计训练语料中最常见的相邻对，将其合并成新符号；重复直到达到目标词表规模。',
+    tags: ['频次驱动', '贪心合并', '固定 merge rules'],
+    caution: '真实结果由模型自己的 merge rules、预切分规则与词表决定。'
+  },
+  bytebpe: {
+    serial: 'ROUTE 02', name: 'Byte-level BPE · 字节级 BPE',
+    definition: '先把文本编码为 UTF-8 字节，以 256 个字节值作为可逆的基础字母表，再学习常见字节片段的 BPE 合并。',
+    tags: ['UTF-8 字节兜底', '可逆', '任意文本覆盖'],
+    caution: '一个汉字包含多个 UTF-8 字节，Token 边界不一定与人眼看到的字符边界对齐。'
+  },
+  wordpiece: {
+    serial: 'ROUTE 03', name: 'WordPiece · 词片匹配',
+    definition: '训练阶段依据语料与词表目标选择有用片段；编码时通常从当前位置寻找词表中可匹配的最长片段，延续片段常用 ## 标记。',
+    tags: ['词表驱动', '最长匹配', '## 延续标记'],
+    caution: '## 是常见 WordPiece 显示约定，并非所有实现都使用相同的可视标记。'
+  },
+  unigram: {
+    serial: 'ROUTE 04', name: 'Unigram Language Model · 一元语言模型',
+    definition: '先准备较大的候选子词集合，为每个子词估计概率，再逐步删除对语料似然影响较小的候选；编码时寻找概率更高的切分路径。',
+    tags: ['概率模型', '候选剪枝', '最佳路径'],
+    caution: '页面概率仅用于讲解；真实概率来自 tokenizer 在训练语料上学习的模型。'
+  }
+};
+
+let tokenizerMode = 'subword';
+let subwordAlgorithm = 'bpe';
+
+function lexicalUnits(text) {
+  return text.match(/[\u3400-\u9fff]+|[A-Za-z]+(?:'[A-Za-z]+)?|\d+(?:\.\d+)?|[^\s]/gu) || [];
+}
+
+function splitLatinSubword(word) {
+  const lower = word.toLowerCase();
+  const known = {
+    unhappiness: ['un', 'happi', 'ness'], happiness: ['happi', 'ness'],
+    transformer: ['transform', 'er'], tokenizer: ['token', 'izer'],
+    studying: ['study', 'ing'], playing: ['play', 'ing'], lowest: ['low', 'est'],
+    unbelievable: ['un', 'believ', 'able'], internationalization: ['international', 'ization']
+  };
+  if (known[lower]) {
+    const parts = [...known[lower]];
+    if (word[0] === word[0]?.toUpperCase()) parts[0] = parts[0][0].toUpperCase() + parts[0].slice(1);
+    return parts;
+  }
+  if (word.length <= 6) return [word];
+  const suffixes = ['ization', 'ation', 'ness', 'able', 'ment', 'ingly', 'ing', 'ers', 'er', 'ed', 'ly', 's'];
+  const suffix = suffixes.find(item => lower.endsWith(item) && word.length - item.length >= 3);
+  if (suffix) return [word.slice(0, -suffix.length), word.slice(-suffix.length)];
+  const pivot = Math.max(3, Math.min(word.length - 2, Math.round(word.length * .58)));
+  return [word.slice(0, pivot), word.slice(pivot)];
+}
+
+function splitUnitToSubwords(unit) {
+  if (/^[A-Za-z]+(?:'[A-Za-z]+)?$/.test(unit)) return splitLatinSubword(unit);
+  if (/^[\u3400-\u9fff]+$/u.test(unit)) return allTokens(unit);
+  return [unit];
+}
+
+function bpeTokens(text) {
+  return lexicalUnits(text).flatMap(splitUnitToSubwords);
+}
+
+function byteBpeTokens(text) {
+  const chunks = text.match(/\s+|[\u3400-\u9fff]+|[A-Za-z]+(?:'[A-Za-z]+)?|\d+(?:\.\d+)?|[^\s]/gu) || [];
+  let afterSpace = false;
+  const result = [];
+  chunks.forEach(chunk => {
+    if (/^\s+$/u.test(chunk)) { afterSpace = true; return; }
+    const pieces = splitUnitToSubwords(chunk);
+    pieces.forEach((piece, index) => result.push(`${afterSpace && index === 0 ? 'Ġ' : ''}${piece}`));
+    afterSpace = false;
+  });
+  return result;
+}
+
+function wordPieceTokens(text) {
+  return lexicalUnits(text).flatMap(unit => splitUnitToSubwords(unit).map((piece, index) => index ? `##${piece}` : piece));
+}
+
+function unigramTokens(text) {
+  const chunks = text.match(/\s+|[\u3400-\u9fff]+|[A-Za-z]+(?:'[A-Za-z]+)?|\d+(?:\.\d+)?|[^\s]/gu) || [];
+  let atBoundary = true;
+  const result = [];
+  chunks.forEach(chunk => {
+    if (/^\s+$/u.test(chunk)) { atBoundary = true; return; }
+    const pieces = splitUnitToSubwords(chunk);
+    const isPunctuation = /^[^A-Za-z0-9\u3400-\u9fff]+$/u.test(chunk);
+    pieces.forEach((piece, index) => result.push(`${atBoundary && index === 0 && !isPunctuation ? '▁' : ''}${piece}`));
+    atBoundary = false;
+  });
+  return result;
+}
+
+function tokenizeForLab(text, mode = tokenizerMode, algorithm = subwordAlgorithm) {
+  if (mode === 'word') return lexicalUnits(text);
+  if (mode === 'character') return [...text].map(char => /^\s$/u.test(char) ? '␠' : char);
+  if (algorithm === 'bytebpe') return byteBpeTokens(text);
+  if (algorithm === 'wordpiece') return wordPieceTokens(text);
+  if (algorithm === 'unigram') return unigramTokens(text);
+  return bpeTokens(text);
+}
+
+function renderLabTokens(tokens) {
+  const limited = tokens.slice(0, 36);
+  $('#labOutput').innerHTML = limited.map((token, index) => `<span class="lab-token" style="--token-index:${index}">${safe(token)}</span>`).join('') || '<span class="lab-token">EMPTY</span>';
+  $('#labTokenCount').textContent = String(tokens.length);
+}
+
+function renderMode(mode = tokenizerMode) {
+  tokenizerMode = mode;
+  const info = MODE_INFO[mode];
+  $$('.mode-tab').forEach(button => {
+    const active = button.dataset.mode === mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  $('#routeMode').textContent = info.route;
+  $('#conceptKicker').textContent = info.kicker;
+  $('#conceptTitle').textContent = info.title;
+  $('#conceptDescription').textContent = info.description;
+  $('#labModeSummary').textContent = info.summary;
+  $('#labFormula').textContent = info.formula;
+  $('#conceptTakeaway').textContent = info.takeaway;
+  $('#conceptPoints').innerHTML = info.points.map(([label, value]) => `<li><b>${safe(label)}</b><span>${safe(value)}</span></li>`).join('');
+  ['vocab', 'sequence', 'unknown'].forEach((name, index) => {
+    $(`#${name}Gauge`).style.width = `${info.gauges[index]}%`;
+    $(`#${name}Value`).textContent = info.values[index];
+  });
+  const tokens = tokenizeForLab($('#labText').value, mode);
+  renderLabTokens(tokens);
+}
+
+function timelineForAlgorithm(algorithm, sample) {
+  const pieces = splitLatinSubword(sample);
+  const chars = [...sample].join(' · ');
+  if (algorithm === 'bytebpe') {
+    const bytes = [...new TextEncoder().encode(sample)].map(byte => byte.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+    return [
+      ['编码', '文本 → UTF-8', bytes],
+      ['映射', '字节作为基础单元', [...sample].join(' | ')],
+      ['合并', '按 merge rank 融合', pieces.join(' + ')]
+    ];
+  }
+  if (algorithm === 'wordpiece') return [
+    ['装载', '待编码词', sample],
+    ['匹配', '从当前位置查最长词片', pieces.map((part, index) => index ? `##${part}` : part).join(' | ')],
+    ['完成', '全部字符被词表覆盖', pieces.map((part, index) => index ? `##${part}` : part).join(' + ')]
+  ];
+  if (algorithm === 'unigram') {
+    const alternative = pieces.length > 1 ? [pieces[0], pieces.slice(1).join('')].join(' + ') : [...sample].join(' + ');
+    return [
+      ['候选', '建立多条切分路径', `${pieces.join(' + ')}  /  ${alternative}`],
+      ['评分', '计算路径概率（示意）', 'P(path A)=0.42  >  P(path B)=0.17'],
+      ['选择', 'Viterbi / 最佳路径', pieces.join(' + ')]
+    ];
+  }
+  return [
+    ['初始', '基础符号序列', chars],
+    ['统计', '寻找高频相邻对', `${pieces[0] || sample}  ← pair merge`],
+    ['重复', '按规则持续合并', pieces.join(' + ')]
+  ];
+}
+
+function renderAlgorithm(algorithm = subwordAlgorithm) {
+  subwordAlgorithm = algorithm;
+  const info = ALGORITHM_INFO[algorithm];
+  $$('.algorithm-card').forEach(button => {
+    const active = button.dataset.algorithm === algorithm;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  $('#algorithmSerial').textContent = info.serial;
+  $('#algorithmName').textContent = info.name;
+  $('#algorithmDefinition').textContent = info.definition;
+  $('#algorithmTags').innerHTML = info.tags.map(tag => `<span>${safe(tag)}</span>`).join('');
+  $('#algorithmCaution').textContent = info.caution;
+  const sampleMatch = $('#labText').value.match(/[A-Za-z]{5,}/);
+  const sample = sampleMatch ? sampleMatch[0] : 'tokenizer';
+  const timeline = timelineForAlgorithm(algorithm, sample);
+  $('#algorithmTimeline').innerHTML = timeline.map(([label, action, result], index) => `
+    <div class="timeline-step" style="--step-index:${index}"><b>${index + 1}</b><span>${safe(label)} · ${safe(action)}</span><code>${safe(result)}</code></div>
+  `).join('');
+  const tokens = tokenizeForLab($('#labText').value, 'subword', algorithm);
+  $('#algorithmResult').innerHTML = tokens.slice(0, 18).map(token => `<b>${safe(token)}</b>`).join('');
+}
+
+function runTokenizerLab() {
+  const lab = $('#tokenizerLab');
+  lab.classList.remove('lab-running');
+  void lab.offsetWidth;
+  lab.classList.add('lab-running');
+  renderMode(tokenizerMode);
+  renderAlgorithm(subwordAlgorithm);
+}
+
+$$('.mode-tab').forEach(button => button.addEventListener('click', () => renderMode(button.dataset.mode)));
+$$('.algorithm-card').forEach(button => button.addEventListener('click', () => {
+  renderAlgorithm(button.dataset.algorithm);
+  renderMode('subword');
+}));
+$('#runLab').addEventListener('click', runTokenizerLab);
+$('#labText').addEventListener('keydown', event => { if (event.key === 'Enter') runTokenizerLab(); });
+$('#labText').addEventListener('input', () => {
+  renderMode(tokenizerMode);
+  renderAlgorithm(subwordAlgorithm);
+});
+
 const canvas = $('#particleCanvas');
 const ctx = canvas.getContext('2d');
 let particles = [];
@@ -543,5 +780,7 @@ window.factoryDebug = {
 
 refreshPreview();
 resetFactory(false);
+renderMode('subword');
+renderAlgorithm('bpe');
 resizeParticles();
 drawParticles();
