@@ -634,7 +634,7 @@ function tokenizeForLab(text, mode = tokenizerMode, algorithm = subwordAlgorithm
 
 function renderLabTokens(tokens) {
   const limited = tokens.slice(0, 36);
-  $('#labOutput').innerHTML = limited.map((token, index) => `<span class="lab-token" style="--token-index:${index}">${safe(token)}</span>`).join('') || '<span class="lab-token">EMPTY</span>';
+  $('#labOutput').innerHTML = limited.map((token, index) => `<span class="lab-token" style="--token-index:${index}" title="Token ${index + 1} · ${safe(token)}">${safe(token)}</span>`).join('') || '<span class="lab-token">EMPTY</span>';
   $('#labTokenCount').textContent = String(tokens.length);
 }
 
@@ -900,6 +900,7 @@ function runTrainingRound() {
     trainerState.ranking = mergeRanking(trainerState);
   }
   renderTrainer();
+  pulseTrainer();
   if (trainerComplete()) stopTrainerAuto();
   return true;
 }
@@ -923,7 +924,7 @@ function renderSegments() {
       ? segmentWithCandidates(`▁${row.text}`, trainerState.candidates).tokens
       : row.symbols;
     const highlight = trainerState.lastEvent?.token;
-    return `<div class="segment-row"><b>${safe(row.text)} × ${row.count}</b><div>${symbols.map(token => `<span class="segment-token ${token === highlight ? 'new' : ''}">${safe(displayTrainingToken(token))}</span>`).join('')}</div></div>`;
+    return `<div class="segment-row"><b>${safe(row.text)} × ${row.count}</b><div>${symbols.map((token, index) => `<span class="segment-token ${token === highlight ? 'new' : ''}" title="第 ${index + 1} 个训练符号 · ${safe(displayTrainingToken(token))}">${safe(displayTrainingToken(token))}</span>`).join('')}</div></div>`;
   });
   $('#corpusSegments').innerHTML = rows.join('');
 }
@@ -935,14 +936,30 @@ function renderCandidates() {
     $('#candidateTitle').textContent = '下一批候选剪枝排行';
     $('#candidateMetric').textContent = 'Δ NLL · LOWER FIRST';
     const max = Math.max(...ranking.map(item => item.impact), .001);
-    $('#candidateList').innerHTML = ranking.map((item, index) => `<div class="candidate-row" style="--meter:${Math.max(6, item.impact / max * 100)}%"><b>${String(index + 1).padStart(2, '0')}</b><code>${safe(item.token)}</code><span>Δ ${item.impact.toFixed(3)}</span></div>`).join('') || '<p>没有可继续剪除的候选。</p>';
+    $('#candidateList').innerHTML = ranking.map((item, index) => `<button type="button" class="candidate-row" data-candidate-index="${index}" style="--meter:${Math.max(6, item.impact / max * 100)}%" aria-label="检查第 ${index + 1} 名剪枝候选 ${safe(item.token)}"><b>${String(index + 1).padStart(2, '0')}</b><code>${safe(item.token)}</code><span>Δ ${item.impact.toFixed(3)}</span></button>`).join('') || '<p>没有可继续剪除的候选。</p>';
     return;
   }
   const isWordPiece = trainerState.algorithm === 'wordpiece';
   $('#candidateTitle').textContent = isWordPiece ? 'Pair 训练得分排行' : '高频 Pair 排行';
   $('#candidateMetric').textContent = isWordPiece ? 'FREQ / LEFT × RIGHT' : 'FREQUENCY';
   const max = Math.max(...ranking.map(item => item.score), 1);
-  $('#candidateList').innerHTML = ranking.map((item, index) => `<div class="candidate-row" style="--meter:${Math.max(6, item.score / max * 100)}%"><b>${String(index + 1).padStart(2, '0')}</b><code>${safe(displayTrainingToken(item.left))} + ${safe(displayTrainingToken(item.right))}</code><span>${isWordPiece ? item.score.toFixed(4) : `${item.frequency}×`}</span></div>`).join('') || '<p>没有可继续合并的 Pair。</p>';
+  $('#candidateList').innerHTML = ranking.map((item, index) => `<button type="button" class="candidate-row" data-candidate-index="${index}" style="--meter:${Math.max(6, item.score / max * 100)}%" aria-label="检查第 ${index + 1} 名 Pair ${safe(displayTrainingToken(item.left))} 加 ${safe(displayTrainingToken(item.right))}"><b>${String(index + 1).padStart(2, '0')}</b><code>${safe(displayTrainingToken(item.left))} + ${safe(displayTrainingToken(item.right))}</code><span>${isWordPiece ? item.score.toFixed(4) : `${item.frequency}×`}</span></button>`).join('') || '<p>没有可继续合并的 Pair。</p>';
+}
+
+function inspectCandidate(index) {
+  const item = trainerState?.ranking[index];
+  if (!item) return;
+  $$('.candidate-row').forEach((row, rowIndex) => row.classList.toggle('inspected', rowIndex === index));
+  if (trainerState.kind === 'unigram') {
+    $('#roundEvent').innerHTML = `<span>候选检查 · RANK ${String(index + 1).padStart(2, '0')}</span><b>PRUNE ${safe(item.token)}</b><p>若现在移除它，语料负对数似然上升 ${item.impact.toFixed(3)}。ΔNLL 越小，说明越容易被其他候选替代；训练只会自动剪掉排行榜第 1 名。</p>`;
+    return;
+  }
+  const left = displayTrainingToken(item.left);
+  const right = displayTrainingToken(item.right);
+  const score = trainerState.algorithm === 'wordpiece'
+    ? `Pair 得分 ${item.score.toFixed(4)}，原始频次 ${item.frequency} 次`
+    : `在当前训练语料中共出现 ${item.frequency} 次`;
+  $('#roundEvent').innerHTML = `<span>候选检查 · RANK ${String(index + 1).padStart(2, '0')}</span><b>${safe(left)} + ${safe(right)}</b><p>${score}。排行榜第 1 名会在下一轮被整体合并，其余候选将在语料更新后重新统计。</p>`;
 }
 
 function renderLearnedVocab() {
@@ -950,12 +967,20 @@ function renderLearnedVocab() {
   const vocab = trainerState.kind === 'unigram' ? trainerState.candidates.map(item => item.token) : trainerState.vocab;
   const base = new Set(trainerState.baseVocab);
   $('#vocabSummary').textContent = `${vocab.length} 枚 Token`;
-  $('#learnedVocab').innerHTML = vocab.slice().sort((a, b) => [...a].length - [...b].length || a.localeCompare(b)).map(token => `<span class="vocab-chip ${base.has(token) ? '' : 'learned'}">${safe(displayTrainingToken(token))}</span>`).join('');
+  $('#learnedVocab').innerHTML = vocab.slice().sort((a, b) => [...a].length - [...b].length || a.localeCompare(b)).map(token => `<span class="vocab-chip ${base.has(token) ? '' : 'learned'}" title="${base.has(token) ? '基础符号' : '训练获得的 Token'} · ${safe(displayTrainingToken(token))}">${safe(displayTrainingToken(token))}</span>`).join('');
 }
 
 function renderTrainedPreview() {
   const tokens = learnedTokenize($('#labText').value).slice(0, 30);
-  $('#trainedPreview').innerHTML = tokens.length ? tokens.map(token => `<span class="preview-token">${safe(displayTrainingToken(token))}</span>`).join('') : '<p>初始化后将使用上方实验室文本进行试切。</p>';
+  $('#trainedPreview').innerHTML = tokens.length ? tokens.map((token, index) => `<span class="preview-token" title="试切 Token ${index + 1}">${safe(displayTrainingToken(token))}</span>`).join('') : '<p>初始化后将使用上方实验室文本进行试切。</p>';
+}
+
+function pulseTrainer() {
+  const shell = $('#trainerShell');
+  shell.classList.remove('round-firing');
+  void shell.offsetWidth;
+  shell.classList.add('round-firing');
+  setTimeout(() => shell.classList.remove('round-firing'), 760);
 }
 
 function renderTrainer() {
@@ -970,6 +995,7 @@ function renderTrainer() {
     : (target === state.initialVocabSize ? 100 : (size - state.initialVocabSize) / Math.max(1, target - state.initialVocabSize) * 100);
   $('#trainerProgress').style.width = `${Math.max(0, Math.min(100, progress))}%`;
   $('#trainerStatus').textContent = !state ? '等待装料' : trainerComplete(state) ? '目标词表已到达 · TRAINING COMPLETE' : `训练中 · ${state.kind === 'unigram' ? '逐轮剪枝' : '逐轮合并'}`;
+  $('#trainerShell').classList.toggle('training-complete', Boolean(state && trainerComplete(state)));
   $('#stepTrainer').disabled = !state || trainerComplete(state);
   $('#undoTrainer').disabled = trainerSnapshots.length === 0;
   renderSegments();
@@ -1027,6 +1053,10 @@ $('#targetVocab').addEventListener('input', () => {
 });
 $('#initializeTrainer').addEventListener('click', initializeTrainingMachine);
 $('#stepTrainer').addEventListener('click', runTrainingRound);
+$('#candidateList').addEventListener('click', event => {
+  const row = event.target.closest('.candidate-row');
+  if (row) inspectCandidate(Number(row.dataset.candidateIndex));
+});
 $('#undoTrainer').addEventListener('click', () => {
   stopTrainerAuto();
   const snapshot = trainerSnapshots.pop();

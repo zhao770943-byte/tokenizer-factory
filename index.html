@@ -107,9 +107,14 @@
           <b>核心权衡</b>
           <span>词表规模</span><i>↔</i><span>序列长度</span><i>↔</i><span>未知词</span>
         </div>
+        <nav class="lab-journey" aria-label="分词策略实验室学习路线">
+          <a href="#granularityDeck"><b>01</b><span>比较切分粒度<small>Word / Character / Subword</small></span><i>➜</i></a>
+          <a href="#subwordTrainer"><b>02</b><span>亲手训练词表<small>Merge / Score / Prune</small></span><i>➜</i></a>
+          <a href="#matrixTitle"><b>03</b><span>完成方案对照<small>Coverage / Length / OOV</small></span><i>✓</i></a>
+        </nav>
       </header>
 
-      <div class="granularity-deck">
+      <div class="granularity-deck" id="granularityDeck">
         <aside class="granularity-switcher" aria-label="三类 Tokenizer 粒度">
           <div class="deck-head"><i></i><span>加工粒度选择</span><b>MODE / 03</b></div>
           <div class="mode-tabs" role="tablist" aria-label="Tokenizer 粒度模式">
@@ -159,7 +164,7 @@
         </aside>
       </div>
 
-      <section class="subword-foundry" aria-labelledby="subwordTitle">
+      <section class="subword-foundry" id="subwordTrainer" aria-labelledby="subwordTitle">
         <header class="foundry-title">
           <div><span>SUBWORD FOUNDRY · TRAINABLE MINIATURE ENGINE</span><h3 id="subwordTitle">Subword 可训练小型实验机</h3></div>
           <p>输入迷你训练语料并设定目标词表，单步观察 Pair 合并或候选剪枝；这里展示的是训练过程，而不只是最终切分结果。</p>
