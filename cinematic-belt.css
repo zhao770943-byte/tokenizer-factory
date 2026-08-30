@@ -27,7 +27,10 @@ button { cursor: pointer; }
 
 #particleCanvas { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
 .scanlines { position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: .28; mix-blend-mode: screen; background: repeating-linear-gradient(0deg, transparent 0 3px, #c8f5ff09 4px); }
-.workshop-page { position: relative; z-index: 1; width: var(--stage-width); min-width: 1600px; }
+.workshop-page { position: relative; z-index: 1; width: var(--stage-width); min-width: 1600px; transition: transform .36s cubic-bezier(.55,.05,.45,.95), opacity .32s ease, filter .32s ease; }
+body.page-shifting-right { overflow: hidden; }
+body.page-shifting-right .workshop-page { opacity: 0; filter: blur(8px) brightness(1.6); transform: translateX(-13vw) scale(.98); }
+body.page-shifting-right::after { content: ""; position: fixed; inset: 0; z-index: 200; pointer-events: none; background: linear-gradient(100deg, transparent 0 28%, #6de9ff22 38%, #eafcff 49%, #8d6cff88 52%, transparent 66%); transform: translateX(-110%); animation: workshopPortal .42s cubic-bezier(.6,.05,.45,.98) forwards; }
 
 .factory-stage {
   position: relative; width: var(--stage-width); min-width: 1600px; aspect-ratio: 2048 / 940;
@@ -102,6 +105,19 @@ button { cursor: pointer; }
 .vector-bars i { width: 4px; height: var(--h); background: linear-gradient(#f4ffff, #50e4ff 40%, #7057ff); box-shadow: 0 0 6px #51e2ff; animation: vectorPulse .75s ease-in-out infinite alternate; animation-delay: calc(var(--i) * 35ms); }
 .factory-stage.embedding-active .embedding-readout { animation: chamberPulse .75s ease-in-out infinite alternate; }
 .factory-stage.embedding-active .vector-bars { opacity: 1; }
+
+.embedding-gateway { position: absolute; z-index: 24; right: 2.2%; top: 64.8%; width: 15.4%; min-width: 246px; height: 68px; display: grid; grid-template-columns: 54px 1fr 31px; align-items: center; gap: 10px; padding: 7px 12px 7px 7px; overflow: hidden; color: #eafcff; border: 1px solid #52dff7; clip-path: polygon(0 0, calc(100% - 17px) 0, 100% 17px, 100% 100%, 17px 100%, 0 calc(100% - 17px)); background: linear-gradient(105deg, #06141ee8, #0b1830ed 54%, #160a28ed); box-shadow: inset 0 0 24px #1b759a4d, 0 0 16px #4de3ff5c; text-align: left; isolation: isolate; transition: transform .25s ease, filter .25s ease, box-shadow .25s ease; }
+.embedding-gateway::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .7; background: linear-gradient(90deg, transparent 0 35%, #65eaff48 49%, transparent 63%); transform: translateX(-110%); animation: gatewayScan 2.4s ease-in-out infinite; }
+.embedding-gateway::after { content: "VECTOR GATE"; position: absolute; right: 11px; top: 4px; color: #846ca0; font: 6px ui-monospace, Consolas, monospace; letter-spacing: .16em; }
+.embedding-gateway:hover, .embedding-gateway:focus-visible { filter: brightness(1.35); transform: translateY(-4px) scale(1.02); box-shadow: inset 0 0 30px #3189b466, 0 0 28px #5ce8ff99, 0 0 48px #8d66ff42; }
+.factory-stage[data-stage="4"] .embedding-gateway { border-color: #f1d286; box-shadow: inset 0 0 28px #66502966, 0 0 22px #f0c96d8a; animation: gatewayReady 1.1s ease-in-out infinite alternate; }
+.gateway-reactor { position: relative; width: 50px; height: 50px; display: grid; place-items: center; border: 1px solid #5ce8ff; border-radius: 50%; background: radial-gradient(circle, #f7ffff 0 5%, #6cecff 7% 14%, #142c54 16% 34%, #070b14 36%); box-shadow: inset 0 0 14px #5ce5ff, 0 0 13px #49dfff; }
+.gateway-reactor::before, .gateway-reactor::after, .gateway-reactor b { content: ""; position: absolute; border: 1px solid #6aeaff; border-radius: 50%; }
+.gateway-reactor::before { inset: 5px; border-left-color: transparent; animation: reactorOrbit 1.8s linear infinite; }.gateway-reactor::after { inset: 12px; border-right-color: #b77aff; border-bottom-color: transparent; animation: reactorOrbit 1.1s linear infinite reverse; }
+.gateway-reactor b:nth-child(1) { width: 5px; height: 5px; top: 5px; left: 22px; background: #fff; box-shadow: 0 0 8px #6aeaff; }.gateway-reactor b:nth-child(2) { width: 4px; height: 4px; right: 7px; bottom: 11px; background: #c985ff; box-shadow: 0 0 8px #c985ff; }.gateway-reactor b:nth-child(3) { width: 3px; height: 3px; left: 8px; bottom: 14px; background: #e8c873; box-shadow: 0 0 8px #e8c873; }
+.embedding-gateway > span { min-width: 0; display: grid; gap: 2px; }.embedding-gateway small { color: #6f91a2; font: 7px ui-monospace, Consolas, monospace; letter-spacing: .08em; }.embedding-gateway strong { overflow: hidden; color: #ecfbff; font-size: clamp(12px, .88vw, 17px); white-space: nowrap; text-overflow: ellipsis; text-shadow: 0 0 10px #62e7ff; }.embedding-gateway em { color: #a897c4; font: normal 8px "Microsoft YaHei", sans-serif; }
+.gateway-arrow { color: #f2d38b; font: 28px/1 Georgia, serif; text-shadow: 0 0 12px #f0ca71; animation: gatewayArrow .8s ease-in-out infinite alternate; }
+.station-nav .embedding-station::after { content: "可进入"; margin-left: auto; padding: 3px 6px; color: #0a1013; background: #efcf82; box-shadow: 0 0 10px #efca73; font: 7px ui-monospace, Consolas, monospace; letter-spacing: .08em; }
 
 .belt-energy { position: absolute; z-index: 3; left: 3.5%; right: 5%; top: 63.6%; height: 7.8%; overflow: hidden; pointer-events: none; transform: perspective(900px) rotateX(4deg); }
 .belt-energy::before { content: ""; position: absolute; inset: 6% 0 24%; opacity: .32; background: repeating-linear-gradient(90deg, transparent 0 31px, #61e8ff 32px 34px, transparent 35px 68px); background-size: 68px 100%; animation: beltDeck .55s linear infinite; }
@@ -342,6 +358,11 @@ button { cursor: pointer; }
 @keyframes laserFlicker { to { opacity: .72; filter: brightness(1.65); } }
 @keyframes sparkDance { to { background-position: 5px 4px; transform: translateX(-50%) scale(1.22); } }
 @keyframes statusBlink { 50% { opacity: .42; } }
+@keyframes gatewayScan { 0%, 32% { transform: translateX(-110%); } 70%, 100% { transform: translateX(115%); } }
+@keyframes gatewayReady { to { filter: brightness(1.22); transform: translateY(-2px); } }
+@keyframes reactorOrbit { to { transform: rotate(360deg); } }
+@keyframes gatewayArrow { to { transform: translateX(7px); filter: brightness(1.5); } }
+@keyframes workshopPortal { 65% { transform: translateX(8%); } 100% { transform: translateX(115%); } }
 
 @media (max-width: 1700px) {
   :root { --stage-width: 1600px; }

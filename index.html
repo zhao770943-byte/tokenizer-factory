@@ -7,7 +7,6 @@
   <meta name="description" content="用暗黑机械加工厂动态展示 Tokenizer 与 Embedding 完整流程，互动比较分词算法、静态词向量、位置编码与上下文向量。">
   <title>LLM 原理加工厂｜Tokenizer 与 Embedding 动态教学</title>
   <link rel="stylesheet" href="cinematic-belt.css">
-  <link rel="stylesheet" href="embedding-workshop.css">
 </head>
 <body>
   <canvas id="particleCanvas" aria-hidden="true"></canvas>
@@ -29,7 +28,7 @@
         <button data-go="1"><b>2</b><span>规则识别<small>边界扫描</small></span></button>
         <button data-go="2"><b>3</b><span>切分 Token<small>一对一激光</small></span></button>
         <button data-go="3"><b>4</b><span>映射 ID<small>查询词表</small></span></button>
-        <button data-go="4"><b>5</b><span>送入 Embedding<small>向量化</small></span></button>
+        <button class="embedding-station" data-go="4" data-workshop-page="embedding.html"><b>5</b><span>送入 Embedding<small>切换向量车间</small></span></button>
       </nav>
 
       <div class="machine-labels" aria-hidden="true">
@@ -67,6 +66,12 @@
         <p id="embeddingInput">输入 ID：—</p>
         <div class="vector-bars" id="vectorBars"></div>
       </section>
+
+      <button class="embedding-gateway" id="embeddingGateway" type="button" aria-label="进入 Embedding 向量车间">
+        <i class="gateway-reactor" aria-hidden="true"><b></b><b></b><b></b></i>
+        <span><small>NEXT WORKSHOP · 02</small><strong>开启 Embedding 向量舱</strong><em>进入三维语义空间</em></span>
+        <b class="gateway-arrow" aria-hidden="true">→</b>
+      </button>
 
       <div class="laser-overlay" id="laserOverlay" aria-hidden="true"></div>
       <div class="belt-energy" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -274,7 +279,7 @@ token token tokenizer tokenization</textarea>
       </section>
     </section>
 
-    <section class="embedding-lab" id="embeddingLab" aria-labelledby="embeddingLabTitle">
+    <section class="embedding-lab" id="embeddingLab" aria-labelledby="embeddingLabTitle" hidden>
       <header class="embedding-hero">
         <div class="embedding-badge"><i></i><span>TRANSFORMER FACTORY<br>WORKSHOP 03</span></div>
         <div class="embedding-hero-copy">
@@ -425,6 +430,5 @@ token token tokenizer tokenization</textarea>
   </main>
 
   <script src="cinematic-belt.js"></script>
-  <script src="embedding-workshop.js"></script>
 </body>
 </html>

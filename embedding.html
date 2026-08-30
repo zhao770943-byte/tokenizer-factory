@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#020409">
+  <meta name="description" content="在暗黑科幻向量车间中互动比较静态编码、位置编码与上下文 Embedding，并观察八象限三维语义向量。">
+  <title>Embedding 向量车间｜LLM 原理加工厂</title>
+  <link rel="stylesheet" href="embedding-workshop.css">
+</head>
+<body data-vector-family="static">
+  <div class="vector-scanlines" aria-hidden="true"></div>
+  <main class="vector-workshop">
+    <header class="vector-topbar">
+      <a class="back-factory" href="index.html"><span>‹</span><b>Tokenizer 加工厂</b></a>
+      <div class="vector-title">
+        <span>TRANSFORMER FACTORY · WORKSHOP 02</span>
+        <h1><em>Embedding</em> 向量车间</h1>
+      </div>
+      <div class="vector-route" aria-label="从 Token ID 到语义空间">
+        <span><b>101</b><small>Token ID</small></span><i>→</i>
+        <span><b>[0.21, −0.34, …]</b><small>稠密向量</small></span><i>→</i>
+        <span><b>↗</b><small>语义坐标</small></span>
+      </div>
+    </header>
+
+    <section class="vector-deck" id="vectorDeck">
+      <aside class="vector-control-bay">
+        <header><i></i><div><span>输入原料</span><b>从文字选择目标 Token</b></div></header>
+
+        <label class="vector-input" for="embeddingText">
+          <textarea id="embeddingText" maxlength="96" spellcheck="false">我喜欢吃苹果</textarea>
+          <button id="loadEmbeddingInput">生成向量 <span>→</span></button>
+        </label>
+        <div class="token-selector">
+          <span>选择要观察的 Token</span>
+          <div id="embeddingTokens" role="group" aria-label="选择目标 Token"></div>
+        </div>
+
+        <div class="family-switch" role="tablist" aria-label="静态编码与动态编码">
+          <button class="active" role="tab" aria-selected="true" data-vector-family="static">
+            <span>01</span><b>静态编码舱</b><small>同一个词，表示固定</small>
+          </button>
+          <button role="tab" aria-selected="false" data-vector-family="dynamic">
+            <span>02</span><b>动态编码舱</b><small>位置或语境改变坐标</small>
+          </button>
+        </div>
+
+        <div class="method-bank" data-method-family="static">
+          <button class="active" data-vector-method="onehot"><b>One-hot</b><span>身份基线</span></button>
+          <button data-vector-method="word2vec"><b>Word2Vec</b><span>局部上下文</span></button>
+          <button data-vector-method="fasttext"><b>FastText</b><span>字符 n-gram</span></button>
+          <button data-vector-method="glove"><b>GloVe</b><span>全局共现</span></button>
+        </div>
+        <div class="method-bank" data-method-family="dynamic" hidden>
+          <button data-vector-method="position"><b>位置编码</b><span>Token + 顺序</span></button>
+          <button data-vector-method="elmo"><b>ELMo</b><span>双向 LSTM</span></button>
+          <button data-vector-method="gpt"><b>GPT</b><span>单向 Transformer</span></button>
+          <button data-vector-method="bert"><b>BERT</b><span>双向 Transformer</span></button>
+          <button data-vector-method="contextual"><b>上下文 Embedding</b><span>Token + 整句语境</span></button>
+        </div>
+
+        <div class="dynamic-controls" id="dynamicControls" hidden>
+          <div class="context-presets" id="contextPresets" hidden>
+            <button class="active" data-context="fruit"><span>语境 A</span><b>我喜欢吃苹果</b></button>
+            <button data-context="tech"><span>语境 B</span><b>苹果发布了新手机</b></button>
+          </div>
+          <label class="position-slider" id="positionSlider" for="vectorPosition" hidden>
+            <span>序列位置 <b id="vectorPositionValue">3</b></span>
+            <input id="vectorPosition" type="range" min="1" max="8" value="3">
+          </label>
+        </div>
+
+        <div class="method-conclusion" aria-live="polite">
+          <span id="methodBadge">身份编码</span>
+          <h2 id="methodTitle">One-hot 不理解语义</h2>
+          <p id="methodSummary">它只说明 Token 是谁；不同词彼此正交，没有“苹果接近香蕉”的结构。</p>
+        </div>
+      </aside>
+
+      <section class="vector-space-bay" aria-labelledby="spaceHeading">
+        <header class="space-command">
+          <div>
+            <span id="spaceFamilyLabel">静态编码空间</span>
+            <h2 id="spaceHeading">One-hot · 逐词稀疏向量</h2>
+          </div>
+          <div class="representation-switch" id="representationSwitch" role="tablist" aria-label="训练机制和语义空间视图" hidden>
+            <button class="active" role="tab" aria-selected="true" data-representation-view="process">训练机制</button>
+            <button role="tab" aria-selected="false" data-representation-view="space">训练后语义投影</button>
+          </div>
+          <div class="space-toolbar" id="spaceToolbar">
+            <button id="rotateVectorSpace" aria-pressed="false">自动旋转</button>
+            <button id="resetVectorView">重置视角</button>
+          </div>
+        </header>
+
+        <div class="onehot-stage" id="oneHotStage">
+          <header>
+            <div><span>ONE-HOT VOCABULARY TABLE</span><h3>每个词占一个独立维度</h3></div>
+            <div class="onehot-principle" aria-label="One-hot 编码过程">
+              <span><small>输入</small><b>Token</b></span><i>→</i>
+              <span class="index-reactor"><small>查词表</small><b>INDEX</b></span><i>→</i>
+              <span><small>输出</small><b>V 维稀疏向量</b></span>
+            </div>
+          </header>
+          <div class="onehot-machine">
+            <div class="onehot-index" id="oneHotIndex"></div>
+            <div class="onehot-matrix" id="oneHotMatrix" aria-label="逐词 One-hot 稀疏向量表"></div>
+          </div>
+          <footer>
+            <span><b id="oneHotVocabSize">4</b><small>词表大小 V</small></span>
+            <i>→</i><span><b id="oneHotDimension">4 维</b><small>向量维度</small></span>
+            <i>→</i><span><b>1</b><small>每行非零元素</small></span>
+          </footer>
+        </div>
+
+        <div class="method-stage" id="methodStage" hidden>
+          <div class="method-stage-note"><b>TRAINING MECHANISM</b><span>这里展示算法怎样产生向量；完成训练后，才能在“语义投影”中观察向量关系。</span></div>
+          <div class="method-visualizer" id="methodVisualizer" aria-live="polite"></div>
+        </div>
+
+        <div class="octant-stage" id="octantStage" hidden>
+          <canvas id="vectorSpaceCanvas" aria-label="以原点为中心、覆盖八个象限的可旋转三维向量空间"></canvas>
+          <div class="octant-title"><span>DIMENSION-REDUCED SEMANTIC PROJECTION</span><b>高维词向量降维到三维 · 拖动旋转 · 点击端点</b></div>
+          <div class="projection-disclaimer"><b>3D ≠ 原始向量维度</b><span>仅用于观察训练后相对距离与方向</span></div>
+          <div class="origin-label">O · 原点</div>
+          <div class="axis-endpoints" aria-hidden="true"><span>+X</span><span>−X</span><span>+Y</span><span>−Y</span><span>+Z</span><span>−Z</span></div>
+          <div class="vector-legend"><span><i class="selected"></i>当前向量</span><span><i class="related"></i>相关词</span><span><i class="context"></i>另一语境</span></div>
+          <div class="space-status" id="spaceStatus">所有端点都由原点 O 发出，线段方向与长度共同构成向量。</div>
+        </div>
+
+        <div class="vector-flow" aria-label="当前编码过程">
+          <span><b id="flowInput">苹果</b><small>目标 Token</small></span><i>→</i>
+          <span><b id="flowOperation">词表索引</b><small>当前操作</small></span><i>→</i>
+          <span><b id="flowVector">[0, 0, 1, …]</b><small>向量表示</small></span><i>→</i>
+          <span><b id="flowMeaning">身份向量</b><small>编码结果</small></span>
+        </div>
+      </section>
+
+      <aside class="vector-output-bay">
+        <header><i></i><div><span>向量成品</span><b id="outputBayTitle">逐词编码结果</b></div></header>
+
+        <div class="selected-readout">
+          <span>当前 Token</span>
+          <h2 id="activeVectorToken">苹果</h2>
+          <code id="activeVectorCoords">[0, 0, 0, 1]</code>
+        </div>
+
+        <div class="vector-magnitude">
+          <span>向量长度</span><b id="vectorMagnitude">0.91</b>
+          <i><em id="vectorMagnitudeBar"></em></i>
+        </div>
+
+        <div class="vector-components">
+          <span id="componentLabel">完整 One-hot 向量</span>
+          <div id="vectorComponents"></div>
+        </div>
+
+        <div class="neighbor-output">
+          <span>空间近邻</span>
+          <ol id="vectorNeighbors"></ol>
+        </div>
+
+        <div class="core-memory">
+          <span>记住这一点</span>
+          <p id="coreMemory">One-hot 是身份牌，不是语义地图。</p>
+        </div>
+      </aside>
+    </section>
+  </main>
+  <script src="embedding-workshop.js"></script>
+</body>
+</html>

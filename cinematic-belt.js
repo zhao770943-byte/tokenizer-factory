@@ -150,8 +150,8 @@ function updateLesson(stage, step = 0, detailOverride = '') {
     <li class="${index < currentLessonStep ? 'done' : index === currentLessonStep ? 'active' : ''}">${item}</li>
   `).join('');
   const deepLink = $('#lessonDeepLink');
-  deepLink.href = stage === 4 ? '#embeddingLab' : '#tokenizerLab';
-  deepLink.textContent = stage === 4 ? '进入 Embedding 向量车间 ↓' : '深入分词策略 ↓';
+  deepLink.href = stage === 4 ? 'embedding.html' : '#tokenizerLab';
+  deepLink.textContent = stage === 4 ? '向右进入 Embedding 车间 →' : '深入分词策略 ↓';
   factory.dataset.lessonStep = String(currentLessonStep);
 }
 
@@ -498,10 +498,28 @@ sourceText.addEventListener('input', () => {
   resetFactory(false);
 });
 
-$$('.station-nav button').forEach(button => button.addEventListener('click', () => previewStage(Number(button.dataset.go))));
+function enterEmbeddingWorkshop() {
+  const material = sourceText.value.trim() || '我喜欢吃苹果';
+  localStorage.setItem('embeddingFactoryInput', material);
+  document.body.classList.add('page-shifting-right');
+  setTimeout(() => {
+    window.location.href = `embedding.html?text=${encodeURIComponent(material)}`;
+  }, 360);
+}
+
+$$('.station-nav button').forEach(button => button.addEventListener('click', () => {
+  if (button.dataset.workshopPage) return enterEmbeddingWorkshop();
+  previewStage(Number(button.dataset.go));
+}));
 $('#prevStage').addEventListener('click', () => previewStage(Math.max(0, currentStage - 1)));
 $('#nextStage').addEventListener('click', () => previewStage(Math.min(4, currentStage + 1)));
 $('#autoDemo').addEventListener('click', runFactory);
+$('#lessonDeepLink').addEventListener('click', event => {
+  if (currentStage !== 4) return;
+  event.preventDefault();
+  enterEmbeddingWorkshop();
+});
+$('#embeddingGateway').addEventListener('click', enterEmbeddingWorkshop);
 
 const MODE_INFO = {
   word: {
