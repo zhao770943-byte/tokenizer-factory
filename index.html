@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#020407">
-  <meta name="description" content="用暗黑机械加工厂动态展示 Tokenizer 完整流程，并互动比较 Word、Character、Subword 与四种子词算法。">
-  <title>Tokenizer 加工厂｜动态传送带教学演示</title>
+  <meta name="description" content="用暗黑机械加工厂动态展示 Tokenizer 与 Embedding 完整流程，互动比较分词算法、静态词向量、位置编码与上下文向量。">
+  <title>LLM 原理加工厂｜Tokenizer 与 Embedding 动态教学</title>
   <link rel="stylesheet" href="cinematic-belt.css">
+  <link rel="stylesheet" href="embedding-workshop.css">
 </head>
 <body>
   <canvas id="particleCanvas" aria-hidden="true"></canvas>
@@ -91,7 +92,7 @@
         <button id="prevStage" title="上一个工位">‹</button>
         <button id="autoDemo">▶ 自动演示</button>
         <button id="nextStage" title="下一个工位">›</button>
-        <a class="lesson-deep-link" href="#tokenizerLab">深入分词策略 ↓</a>
+        <a class="lesson-deep-link" id="lessonDeepLink" href="#tokenizerLab">深入分词策略 ↓</a>
       </div>
     </section>
 
@@ -272,8 +273,158 @@ token token tokenizer tokenization</textarea>
         <p class="matrix-footnote">“低 OOV”不代表所有系统都绝对没有未知 Token；是否完全覆盖取决于基础字母表、字节回退、规范化规则与特殊 Token 配置。</p>
       </section>
     </section>
+
+    <section class="embedding-lab" id="embeddingLab" aria-labelledby="embeddingLabTitle">
+      <header class="embedding-hero">
+        <div class="embedding-badge"><i></i><span>TRANSFORMER FACTORY<br>WORKSHOP 03</span></div>
+        <div class="embedding-hero-copy">
+          <p>VECTOR REPRESENTATION · SEMANTIC SPACE</p>
+          <h2 id="embeddingLabTitle"><em>Embedding</em> 向量车间</h2>
+          <p>Tokenizer 交付的是离散 ID；Embedding 把它们装配成可计算的连续向量。拖动三维空间、切换编码路线与句子上下文，观察一个 Token 的坐标为什么会固定或移动。</p>
+        </div>
+        <div class="embedding-principle" aria-label="Embedding 核心过程">
+          <span><b>101</b><small>离散 ID</small></span><i>➜</i>
+          <span><b>[0.21, −0.34, …]</b><small>稠密向量</small></span><i>➜</i>
+          <span><b>●</b><small>语义坐标</small></span>
+        </div>
+        <nav class="embedding-journey" aria-label="Embedding 学习路线">
+          <a href="#encodingRoutes"><b>01</b><span>选择编码路线<small>BASELINE / STATIC / DYNAMIC</small></span><i>➜</i></a>
+          <a href="#semanticSpace"><b>02</b><span>进入三维语义空间<small>ROTATE / ZOOM / SELECT</small></span><i>➜</i></a>
+          <a href="#embeddingComparison"><b>03</b><span>理解核心差异<small>FIXED VECTOR / CONTEXT VECTOR</small></span><i>✓</i></a>
+        </nav>
+      </header>
+
+      <section class="embedding-foundry" aria-labelledby="encodingTitle">
+        <header class="embedding-foundry-title">
+          <div><span>ENCODING ROUTES · INTERACTIVE VECTOR ENGINE</span><h3 id="encodingTitle">从 Token ID 到三维语义坐标</h3></div>
+          <p>高维向量无法直接看见，车间将其投影到三维空间；点越近表示当前编码方式认为它们越相似。</p>
+        </header>
+
+        <div class="encoding-routes" id="encodingRoutes" role="tablist" aria-label="六种向量表示方式">
+          <button class="encoding-route active" role="tab" aria-selected="true" data-embedding-method="onehot">
+            <span>01 / BASELINE</span><b>One-hot</b><small>只有身份，没有语义距离</small><i>SPARSE CODE</i>
+          </button>
+          <button class="encoding-route" role="tab" aria-selected="false" data-embedding-method="token">
+            <span>02 / LOOKUP</span><b>Token Embedding</b><small>ID 查询可训练向量表</small><i>DENSE LOOKUP</i>
+          </button>
+          <button class="encoding-route" role="tab" aria-selected="false" data-embedding-method="word2vec">
+            <span>03 / PREDICT</span><b>Word2Vec</b><small>用局部上下文学习静态词向量</small><i>CBOW / SKIP-GRAM</i>
+          </button>
+          <button class="encoding-route" role="tab" aria-selected="false" data-embedding-method="glove">
+            <span>04 / COUNT</span><b>GloVe</b><small>用全局共现统计学习静态向量</small><i>CO-OCCURRENCE</i>
+          </button>
+          <button class="encoding-route" role="tab" aria-selected="false" data-embedding-method="position">
+            <span>05 / ORDER</span><b>位置编码</b><small>给相同 Token 注入顺序信息</small><i>POSITION SIGNAL</i>
+          </button>
+          <button class="encoding-route" role="tab" aria-selected="false" data-embedding-method="contextual">
+            <span>06 / CONTEXT</span><b>上下文 Embedding</b><small>同一个词随句子动态改变</small><i>TRANSFORMER OUTPUT</i>
+          </button>
+        </div>
+
+        <div class="embedding-machine-shell" id="embeddingMachine">
+          <aside class="embedding-control-console">
+            <div class="vector-machine-cap"><i></i><span>CONTEXT MATERIAL</span><b>语境装料台</b></div>
+            <p class="control-intro">两句话都包含“苹果”。切换语境后，观察当前路线是否会改变它的向量坐标。</p>
+            <div class="context-switch" role="group" aria-label="选择苹果所在的句子">
+              <button class="active" data-embedding-context="fruit" aria-pressed="true"><span>语境 A</span><b>我喜欢吃 <em>苹果</em></b><small>水果 / 食物</small></button>
+              <button data-embedding-context="tech" aria-pressed="false"><span>语境 B</span><b><em>苹果</em> 发布了新手机</b><small>品牌 / 科技公司</small></button>
+            </div>
+            <label class="position-control" for="tokenPosition">
+              <span>Token 所在位置 <b id="tokenPositionValue">位置 3</b></span>
+              <input id="tokenPosition" type="range" min="1" max="8" value="3" step="1">
+              <small>只在“位置编码”路线中明显改变坐标</small>
+            </label>
+            <div class="context-actions">
+              <button id="animateContext"><span>▶</span>播放语境切换</button>
+              <button id="resetEmbedding"><span>↺</span>恢复实验</button>
+            </div>
+            <div class="encoding-verdict" id="encodingVerdict" aria-live="polite">
+              <span>当前观察</span>
+              <b>One-hot 只标记“它是谁”</b>
+              <p>所有词彼此正交，本身没有“水果更接近香蕉”这样的语义结构。</p>
+            </div>
+          </aside>
+
+          <section class="semantic-reactor" id="semanticSpace" aria-labelledby="semanticSpaceTitle">
+            <header class="semantic-reactor-head">
+              <div>
+                <span id="embeddingMethodSerial">ROUTE 01 · SPARSE BASELINE</span>
+                <h4 id="semanticSpaceTitle">One-hot · 身份编码基线</h4>
+                <p id="embeddingMethodDefinition">词表中的每个 Token 占据一个独立维度。三维图只是高维稀疏向量的教学投影，不代表学到了语义。</p>
+              </div>
+              <div class="vector-readouts" aria-label="当前向量状态">
+                <span><small>向量类型</small><b id="vectorType">稀疏</b></span>
+                <span><small>是否训练</small><b id="vectorTraining">不需要</b></span>
+                <span><small>随语境变化</small><b id="vectorDynamic">否</b></span>
+              </div>
+            </header>
+
+            <div class="vector-assembly-line" aria-label="当前编码路线的四个处理步骤">
+              <div class="active"><span>01</span><b id="assemblyStep1">Token 输入</b><small id="assemblyDetail1">苹果</small></div><i>➜</i>
+              <div><span>02</span><b id="assemblyStep2">查询词表</b><small id="assemblyDetail2">vocab[苹果]</small></div><i>➜</i>
+              <div><span>03</span><b id="assemblyStep3">生成稀疏码</b><small id="assemblyDetail3">只有一位为 1</small></div><i>➜</i>
+              <div><span>04</span><b id="assemblyStep4">三维投影</b><small id="assemblyDetail4">仅用于观察</small></div>
+            </div>
+
+            <div class="space-viewport" id="spaceViewport">
+              <canvas id="embeddingSpaceCanvas" aria-label="可旋转的三维嵌入空间，展示词语之间的距离与上下文变化"></canvas>
+              <div class="space-title"><span>SEMANTIC SPACE / 3D PROJECTION</span><b id="spaceModeLabel">ONE-HOT SPACE</b></div>
+              <div class="space-axis-key" aria-hidden="true"><span><i class="axis-x"></i>维度 X</span><span><i class="axis-y"></i>维度 Y</span><span><i class="axis-z"></i>维度 Z</span></div>
+              <div class="cluster-legend" aria-label="语义簇图例"><span><i class="fruit"></i>水果</span><span><i class="tech"></i>科技</span><span><i class="animal"></i>动物</span><span><i class="language"></i>语言模型</span></div>
+              <div class="space-help">拖动旋转 · 滚轮缩放 · 点击词语查看向量</div>
+              <div class="space-controls">
+                <button id="toggleSpaceRotation" aria-pressed="false"><span>◉</span>自动旋转</button>
+                <button id="resetSpaceView"><span>⌖</span>重置视角</button>
+              </div>
+            </div>
+
+            <div class="selected-vector" id="selectedVector" aria-live="polite">
+              <span><small>已选 Token</small><b id="selectedToken">苹果</b><em id="selectedCategory">目标词</em></span>
+              <code id="selectedCoordinates">3D 坐标：[0.82, 0.34, −0.18]</code>
+              <p id="selectedExplanation">点击空间中的任意词语，可以查看它在当前编码路线下的坐标和邻近词。</p>
+            </div>
+          </section>
+
+          <aside class="embedding-output-chamber">
+            <div class="vector-machine-cap"><i></i><span>VECTOR OUTPUT</span><b>向量成品仓</b></div>
+            <div class="dense-vector-output">
+              <span>高维向量片段 <small id="vectorDimension">1 × 16 维示意</small></span>
+              <div id="denseVectorCells" aria-label="当前 Token 的向量数值"></div>
+            </div>
+            <div class="neighbor-rack">
+              <span>最近邻居 <small>COSINE SIMILARITY</small></span>
+              <ol id="nearestNeighbors"></ol>
+            </div>
+            <div class="distance-explainer">
+              <b>距离代表什么？</b>
+              <p id="distanceExplanation">One-hot 中不同词的余弦相似度通常为 0；位置远近并不携带训练得到的语义。</p>
+              <code id="embeddingFormula">one_hot(token_id) ∈ {0,1}<sup>|V|</sup></code>
+            </div>
+            <div class="vector-takeaway">
+              <span>一句话记忆</span>
+              <p id="embeddingTakeaway">One-hot 是词表身份牌，不是语义地图。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="embedding-comparison" id="embeddingComparison" aria-labelledby="embeddingComparisonTitle">
+        <header><span>CORE DIFFERENCE</span><h3 id="embeddingComparisonTitle">六种表示方式应该怎样区分？</h3><p>先看向量是否包含语义，再看同一 Token 会不会随位置或上下文改变。</p></header>
+        <div class="embedding-matrix" role="table" aria-label="六种向量表示方式对比">
+          <div class="embedding-matrix-row matrix-heading" role="row"><b>表示方式</b><b>主要输入</b><b>向量特征</b><b>同词不同句</b><b>主要学习信号</b><b>最适合观察什么</b></div>
+          <div class="embedding-matrix-row" role="row"><strong>One-hot</strong><span>Token ID</span><span>高维、稀疏、正交</span><span>完全相同</span><span>不训练</span><span>身份与语义为什么不同</span></div>
+          <div class="embedding-matrix-row" role="row"><strong>Token Embedding</strong><span>Token ID</span><span>稠密、可训练查表</span><span>进入层前相同</span><span>语言模型损失</span><span>ID 如何变成连续数值</span></div>
+          <div class="embedding-matrix-row" role="row"><strong>Word2Vec</strong><span>局部上下文窗口</span><span>静态语义向量</span><span>仍然相同</span><span>预测中心词或邻近词</span><span>局部共现形成语义邻域</span></div>
+          <div class="embedding-matrix-row" role="row"><strong>GloVe</strong><span>全局共现矩阵</span><span>静态语义向量</span><span>仍然相同</span><span>共现比率与统计结构</span><span>全局语料统计关系</span></div>
+          <div class="embedding-matrix-row" role="row"><strong>位置编码</strong><span>序列位置</span><span>顺序信号</span><span>随位置改变</span><span>固定公式或可学习参数</span><span>Transformer 如何知道先后</span></div>
+          <div class="embedding-matrix-row featured" role="row"><strong>上下文 Embedding</strong><span>Token + 整句上下文</span><span>动态语义向量</span><span class="dynamic">明显不同</span><span>Transformer 多层注意力</span><span>一词多义与当前语义</span></div>
+        </div>
+        <p class="embedding-footnote"><b>注意：</b>页面中的三维坐标是高维向量的教学投影，用来观察相对距离和变化趋势；真实模型常使用数百到数千维，降维后会丢失一部分信息。</p>
+      </section>
+    </section>
   </main>
 
   <script src="cinematic-belt.js"></script>
+  <script src="embedding-workshop.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
-# Tokenizer 加工厂
+# LLM 原理加工厂：Tokenizer 与 Embedding
 
-一个面向大模型初学者的暗黑机械加工厂风格互动教学网站。自然语言会沿动态传送带依次经历规则识别、Token 切分、词表 ID 映射与 Embedding 向量化，让抽象的 Tokenizer 流程变得可观察、可暂停、可交互。
+一个面向大模型初学者的暗黑机械加工厂风格互动教学网站。自然语言会沿动态传送带依次经历规则识别、Token 切分、词表 ID 映射与 Embedding 向量化；下方实验车间继续展示静态词向量、位置编码和上下文向量，让抽象流程变得可观察、可暂停、可交互。
 
 ## 在线体验
 
@@ -56,6 +56,19 @@
 
 > **概念辨析：** SentencePiece 是可直接从原始句子训练的语言无关 tokenizer 工具框架，支持 BPE 与 Unigram 等模型；它不等同于一个独立于 BPE/Unigram 的单一切分算法。
 
+### Embedding 向量车间
+
+Tokenizer 流水线的 Token ID 可以继续送入独立的 Embedding 教学车间。车间提供六条可切换路线：
+
+- **One-hot**：观察“身份编码”和“语义表示”的区别。
+- **Token Embedding**：观察 Token ID 如何查询可训练的稠密向量表。
+- **Word2Vec**：观察局部上下文预测如何形成静态语义簇。
+- **GloVe**：观察全局共现统计如何影响词语位置。
+- **位置编码**：拖动 Token 位置，观察同一个词沿位置轨迹移动。
+- **上下文 Embedding**：在“我喜欢吃苹果”和“苹果发布了新手机”之间切换，观察“苹果”从水果簇移动到科技簇。
+
+三维语义空间支持鼠标拖动旋转、滚轮缩放、自动旋转、视角重置和点选词语。点选后会同步显示三维坐标、高维向量片段、最近邻居、示意余弦相似度和当前路线的核心公式。
+
 ## 交互特点
 
 - 自定义输入中英文、数字与标点。
@@ -69,6 +82,10 @@
 - Word / Character / Subword 三种粒度对比。
 - BPE、Byte-level BPE、WordPiece、Unigram 可训练微型实验。
 - 计划训练轮数可调、单步训练、自动训练、暂停和回退。
+- One-hot、Token Embedding、Word2Vec、GloVe、位置编码和上下文 Embedding 六路线对比。
+- 可旋转、缩放、点选的三维嵌入空间。
+- 静态向量与上下文动态向量的同词双句实验。
+- 位置滑块、语境自动切换、最近邻和向量数值联动。
 
 ## 项目结构
 
@@ -77,6 +94,8 @@ tokenizer-factory/
 ├─ index.html
 ├─ cinematic-belt.css
 ├─ cinematic-belt.js
+├─ embedding-workshop.css
+├─ embedding-workshop.js
 ├─ README.md
 └─ assets/
    ├─ tokenizer-factory-cinematic-v1.png
@@ -123,9 +142,10 @@ npx wrangler pages deploy . --project-name tokenizer-factory
 - [x] 四种子词方案互动拆解
 - [x] BPE 高频 Pair 逐轮合并训练机
 - [x] Unigram 候选逐轮剪枝训练机
+- [x] Embedding 六种表示方式互动实验
+- [x] 三维语义空间与上下文动态坐标
+- [x] Position Encoding 位置轨迹
 - [ ] 真实模型 tokenizer 对照实验
-- [ ] Embedding 向量车间
-- [ ] Position Encoding 装配站
 - [ ] Self-Attention 调度中心
 - [ ] Transformer Block 生产线
 - [ ] RAG 知识仓库与 Agent 控制中心

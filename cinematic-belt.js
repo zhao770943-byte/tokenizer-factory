@@ -149,6 +149,9 @@ function updateLesson(stage, step = 0, detailOverride = '') {
   $('#microSteps').innerHTML = lesson.steps.map((item, index) => `
     <li class="${index < currentLessonStep ? 'done' : index === currentLessonStep ? 'active' : ''}">${item}</li>
   `).join('');
+  const deepLink = $('#lessonDeepLink');
+  deepLink.href = stage === 4 ? '#embeddingLab' : '#tokenizerLab';
+  deepLink.textContent = stage === 4 ? '进入 Embedding 向量车间 ↓' : '深入分词策略 ↓';
   factory.dataset.lessonStep = String(currentLessonStep);
 }
 
