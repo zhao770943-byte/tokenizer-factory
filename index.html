@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#020407">
+  <title>Tokenizer 加工厂｜动态传送带教学演示</title>
+  <link rel="stylesheet" href="cinematic-belt.css">
+</head>
+<body>
+  <canvas id="particleCanvas" aria-hidden="true"></canvas>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <main class="workshop-page">
+    <section class="factory-stage" id="factoryStage" data-stage="0" data-running="false" aria-label="Tokenizer 动态加工厂">
+      <div class="factory-backdrop" aria-hidden="true"></div>
+      <div class="factory-vignette" aria-hidden="true"></div>
+
+      <header class="factory-title">
+        <div class="title-rule"><i></i><span>TRANSFORMER FACTORY · WORKSHOP 01</span><i></i></div>
+        <h1><em>Tokenizer</em> 加工厂</h1>
+        <p>自然语言沿传送带依次经历规则识别、Token 切分、ID 编码与 Embedding 向量化</p>
+      </header>
+
+      <nav class="station-nav" aria-label="Tokenizer 五个加工工位">
+        <button class="active" data-go="0"><b>1</b><span>输入文本<small>原料投放</small></span></button>
+        <button data-go="1"><b>2</b><span>规则识别<small>边界扫描</small></span></button>
+        <button data-go="2"><b>3</b><span>切分 Token<small>一对一激光</small></span></button>
+        <button data-go="3"><b>4</b><span>映射 ID<small>查询词表</small></span></button>
+        <button data-go="4"><b>5</b><span>送入 Embedding<small>向量化</small></span></button>
+      </nav>
+
+      <div class="machine-labels" aria-hidden="true">
+        <span class="label-intake">RAW MATERIAL</span>
+        <span class="label-scanner">BOUNDARY SCANNER</span>
+        <span class="label-cutter">1 : 1 TOKEN CUTTER</span>
+        <span class="label-encoder">TOKEN ID ENCODER</span>
+        <span class="label-embedding">EMBEDDING CORE</span>
+      </div>
+
+      <aside class="material-console">
+        <div class="console-heading"><i></i><span>自然语言原料</span><b>RAW / 01</b></div>
+        <textarea id="sourceText" maxlength="160" aria-label="自然语言加工原料">我喜欢 studying AI!</textarea>
+        <div class="console-actions">
+          <button id="startProcess"><span>送上生产线</span><b>➜</b></button>
+          <button id="resetProcess" title="重置加工厂">↺</button>
+        </div>
+        <p id="tokenPreview">预计切分：我 / 喜欢 / studying / AI / !</p>
+      </aside>
+
+      <section class="scanner-readout process-panel">
+        <div class="panel-head"><i></i><span>规则识别结果</span><b id="scanCounter">0 UNIT</b></div>
+        <p id="scannedText">等待原料进入扫描舱</p>
+        <div class="detected-types" id="detectedTypes"></div>
+        <div class="scanner-sweep" aria-hidden="true"></div>
+      </section>
+
+      <section class="encoder-readout process-panel">
+        <div class="panel-head"><i></i><span>TOKEN ID 编码器</span><b>VOCAB MAP</b></div>
+        <div class="encoder-rows" id="encoderRows"><p>等待 Token 输入</p></div>
+      </section>
+
+      <section class="embedding-readout process-panel">
+        <div class="panel-head"><i></i><span>Embedding 向量化</span><b>DENSE VECTOR</b></div>
+        <p id="embeddingInput">输入 ID：—</p>
+        <div class="vector-bars" id="vectorBars"></div>
+      </section>
+
+      <div class="laser-overlay" id="laserOverlay" aria-hidden="true"></div>
+      <div class="belt-energy" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="cargo-layer" id="cargoLayer" aria-live="polite"></div>
+
+      <div class="runtime-status">
+        <i></i>
+        <strong id="statusText">自然语言原料已装载</strong>
+        <span id="statusCode">RAW MATERIAL / 01</span>
+        <div class="progress-track"><b id="progressBar"></b></div>
+      </div>
+    </section>
+
+    <section class="lesson-dock" id="lessonDock">
+      <div class="lesson-index"><b id="lessonNumber">01</b><span id="lessonKicker">RAW MATERIAL</span></div>
+      <div class="lesson-copy">
+        <h2 id="lessonTitle">自然语言是加工原料</h2>
+        <p id="lessonDescription">模型不会直接处理汉字、单词和标点。第一步只是把完整文本放上生产线，文本还没有被切成 Token。</p>
+      </div>
+      <ol class="micro-steps" id="microSteps"></ol>
+      <code id="lessonFormula">文本 → Unicode 字符序列</code>
+      <div class="lesson-controls">
+        <button id="prevStage" title="上一个工位">‹</button>
+        <button id="autoDemo">▶ 自动演示</button>
+        <button id="nextStage" title="下一个工位">›</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="cinematic-belt.js"></script>
+</body>
+</html>
