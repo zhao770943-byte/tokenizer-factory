@@ -538,7 +538,7 @@ const ALGORITHM_INFO = {
     serial: 'ROUTE 02', name: 'Byte-level BPE · 字节级 BPE',
     definition: '先把文本编码为 UTF-8 字节，以 256 个字节值作为可逆的基础字母表，再学习常见字节片段的 BPE 合并。',
     tags: ['UTF-8 字节兜底', '可逆', '任意文本覆盖'],
-    caution: '一个汉字包含多个 UTF-8 字节，Token 边界不一定与人眼看到的字符边界对齐。'
+    caution: '一个汉字包含多个 UTF-8 字节。微型机仅陈列当前语料出现的字节；真实 Byte-level BPE 通常保留完整 256 字节基础表。'
   },
   wordpiece: {
     serial: 'ROUTE 03', name: 'WordPiece · 词片匹配',
