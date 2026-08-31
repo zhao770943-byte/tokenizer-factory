@@ -14,6 +14,14 @@
 
 ![Subword 可训练小型实验机](assets/readme-training-lab.png)
 
+Tokenizer 最后一站可以进入独立的 Embedding 向量车间。下面是 Word2Vec 的训练机制工作台，页面中可以直接切换 Skip-gram 与 CBOW：
+
+![Embedding 向量车间：Word2Vec Skip-gram 与 CBOW 训练机](assets/readme-embedding-workshop.png)
+
+训练机制与三维空间分开呈现。切换到“训练后语义投影”，可以观察高维词向量降维后的方向、距离和语义近邻：
+
+![Embedding 向量车间：训练后的三维语义投影](assets/readme-embedding-space.png)
+
 ## 当前教学内容
 
 ### Tokenizer 五道加工工序
@@ -58,16 +66,19 @@
 
 ### Embedding 向量车间
 
-Tokenizer 流水线的 Token ID 可以继续送入独立的 Embedding 教学车间。车间提供六条可切换路线：
+Tokenizer 流水线的 Token ID 可以继续送入独立的 Embedding 教学车间。当前车间把“编码或训练机制”与“训练后的三维语义投影”分开，避免把降维坐标误认为模型内部的原始向量。车间提供九条可切换路线：
 
-- **One-hot**：观察“身份编码”和“语义表示”的区别。
-- **Token Embedding**：观察 Token ID 如何查询可训练的稠密向量表。
-- **Word2Vec**：观察局部上下文预测如何形成静态语义簇。
-- **GloVe**：观察全局共现统计如何影响词语位置。
-- **位置编码**：拖动 Token 位置，观察同一个词沿位置轨迹移动。
-- **上下文 Embedding**：在“我喜欢吃苹果”和“苹果发布了新手机”之间切换，观察“苹果”从水果簇移动到科技簇。
+- **One-hot**：为词表中的每个词分配一个独立维度，逐词显示标准稀疏向量，不使用三维语义空间。
+- **Word2Vec**：在同一工作台精确对比 Skip-gram“中心词预测多个上下文词”和 CBOW“多个上下文词聚合预测中心词”，并展示输入矩阵 `W`、输出矩阵 `W′` 与训练样本。
+- **FastText**：把整词向量与字符 n-gram 向量相加，直观看到低频词和未登录词如何利用内部形态构造表示。
+- **GloVe**：展示全局共现矩阵，以及对共现统计执行加权最小二乘学习的目标函数。
+- **位置编码**：拖动 Token 位置，观察正弦/余弦位置信号如何随序列位置改变。
+- **ELMo**：展示前向与后向 LSTM 如何结合多层状态，为同一个词生成上下文相关表示。
+- **GPT**：通过因果注意力遮罩展示单向 Transformer 只能读取当前位置左侧信息。
+- **BERT**：展示 Token、Segment 与 Position 三类输入向量相加后送入双向 Transformer Encoder。
+- **上下文 Embedding**：在“我喜欢吃苹果”和“苹果发布了新手机”之间切换，观察“苹果”因语境不同生成不同向量。
 
-三维语义空间支持鼠标拖动旋转、滚轮缩放、自动旋转、视角重置和点选词语。点选后会同步显示三维坐标、高维向量片段、最近邻居、示意余弦相似度和当前路线的核心公式。
+除 One-hot 外，静态词向量和上下文向量都可以切换到“训练后语义投影”。该坐标系是高维向量经教学降维后的三维投影，只用于观察相对方向、距离和语义近邻，并不代表算法原始维度。空间支持鼠标拖动旋转、滚轮缩放、自动旋转、视角重置和端点选择。
 
 ## 交互特点
 
@@ -82,7 +93,10 @@ Tokenizer 流水线的 Token ID 可以继续送入独立的 Embedding 教学车�
 - Word / Character / Subword 三种粒度对比。
 - BPE、Byte-level BPE、WordPiece、Unigram 可训练微型实验。
 - 计划训练轮数可调、单步训练、自动训练、暂停和回退。
-- One-hot、Token Embedding、Word2Vec、GloVe、位置编码和上下文 Embedding 六路线对比。
+- One-hot、Word2Vec、FastText、GloVe、位置编码、ELMo、GPT、BERT 与上下文 Embedding 九路线对比。
+- Word2Vec 的 Skip-gram / CBOW 任务方向、`W` / `W′` 矩阵和训练样本同步演示。
+- FastText 字符 n-gram 装配与 GloVe 全局共现矩阵可视化。
+- “训练机制”和“训练后语义投影”双视图切换，避免把三维降维图误解为原始模型结构。
 - 可旋转、缩放、点选的三维嵌入空间。
 - 静态向量与上下文动态向量的同词双句实验。
 - 位置滑块、语境自动切换、最近邻和向量数值联动。
@@ -94,13 +108,16 @@ tokenizer-factory/
 ├─ index.html
 ├─ cinematic-belt.css
 ├─ cinematic-belt.js
+├─ embedding.html
 ├─ embedding-workshop.css
 ├─ embedding-workshop.js
 ├─ README.md
 └─ assets/
    ├─ tokenizer-factory-cinematic-v1.png
    ├─ readme-factory-preview.png
-   └─ readme-training-lab.png
+   ├─ readme-training-lab.png
+   ├─ readme-embedding-workshop.png
+   └─ readme-embedding-space.png
 ```
 
 项目为纯静态 HTML、CSS 与 JavaScript，不依赖前端框架、数据库或构建工具。
@@ -142,7 +159,9 @@ npx wrangler pages deploy . --project-name tokenizer-factory
 - [x] 四种子词方案互动拆解
 - [x] BPE 高频 Pair 逐轮合并训练机
 - [x] Unigram 候选逐轮剪枝训练机
-- [x] Embedding 六种表示方式互动实验
+- [x] Embedding 九种表示方式互动实验
+- [x] Word2Vec Skip-gram / CBOW 训练机制对照
+- [x] FastText 字符 n-gram 与 GloVe 共现矩阵可视化
 - [x] 三维语义空间与上下文动态坐标
 - [x] Position Encoding 位置轨迹
 - [ ] 真实模型 tokenizer 对照实验
