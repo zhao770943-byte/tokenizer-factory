@@ -13,39 +13,29 @@ const VECTOR_METHODS = {
     memory: '两者都学习 W 与 W′；训练结束后通常取 W（或相关组合）作为静态词向量。', operation: '中心词 ↔ 上下文', vector: 'W 中的词向量', meaning: '局部语义'
   },
   fasttext: {
-    family: 'static', badge: '子词静态编码', heading: 'FastText · 字符 n-gram 合成', title: '词向量由字符片段共同装配',
-    summary: '单词被拆成多个字符 n-gram，再把片段向量与整词向量相加，因此低频词和未登录词也能得到表示。',
-    memory: 'FastText 仍是静态词向量，但它利用词内部的字符结构缓解 OOV。', operation: 'word + n-grams', vector: '子词向量和', meaning: '形态语义'
+    family: 'static', badge: '子词增强 CBOW', heading: 'FastText · CBOW + Hierarchical Softmax', title: '先组装子词，再进行多对一预测',
+    summary: '每个上下文词先生成“整词 + n-gram”增强向量；多个增强向量进入投影层，最终预测一个 target。',
+    memory: 'FastText 可搭配 CBOW 或 Skip-gram；这里演示 FastText-CBOW 与可选的分层 Softmax，而不是把整个词表一次性归一化。', operation: 'word + n-gram → HS', vector: '子词增强词向量', meaning: '形态语义'
   },
   glove: {
-    family: 'static', badge: '全局共现', heading: 'GloVe · 全局统计向量', title: '多义词落在语义之间',
-    summary: '全局共现让“苹果”同时受到水果和科技语料影响，因此固定坐标会落在两个簇之间。',
-    memory: 'GloVe 看全局统计，但仍把多个词义压进同一个坐标。', operation: '共现矩阵', vector: '静态词向量', meaning: '全局语义'
-  },
-  position: {
-    family: 'dynamic', badge: '顺序编码', heading: '位置编码 · 八位置向量轨迹', title: '位置改变，向量随之改变',
-    summary: '拖动序列位置，目标 Token 会沿轨迹跨越不同象限；这表达先后顺序，不代表词义改变。',
-    memory: '位置编码回答“它排在哪里”，不是“它是什么意思”。', operation: 'Token + Position', vector: '位置向量', meaning: '顺序坐标'
+    family: 'static', badge: '全局共现回归', heading: 'GloVe · 加权最小二乘训练器', title: '把全局共现次数拟合成词向量',
+    summary: '先统计整个语料的词—上下文共现矩阵，再只采样非零单元，用加权最小二乘逼近 log(Xᵢⱼ)。',
+    memory: '训练结束后，同一个词的目标向量与上下文向量相加，得到最终静态表示。', operation: '全局矩阵 → 回归', vector: 'wᵢ + w̃ᵢ', meaning: '全局语义'
   },
   elmo: {
-    family: 'dynamic', badge: '双向序列编码', heading: 'ELMo · 双向 LSTM 上下文表示', title: '前向与后向语境在目标词汇合',
-    summary: '前向 LSTM 读取左侧上下文，后向 LSTM 读取右侧上下文，再加权融合多层隐藏状态。',
-    memory: 'ELMo 让一个词拥有多个上下文表示，但依赖双向 LSTM 顺序计算。', operation: 'BiLSTM 多层融合', vector: '上下文状态', meaning: '双向词义'
+    family: 'dynamic', badge: '深层双向语言模型', heading: 'ELMo · 多层 BiLSTM 特征融合', title: '同一 Token 汇合左右语境与不同层特征',
+    summary: '字符 CNN 先产生上下文无关表示，两层双向 LSTM 分别编码前后文，任务再学习各层混合权重。',
+    memory: 'ELMo 通常把预训练 biLM 的多层状态作为特征加入下游模型，而不是只取最后一层。', operation: '字符 CNN → 2×BiLSTM', vector: 'γΣsⱼhₖⱼ', meaning: '双向词义'
   },
   gpt: {
-    family: 'dynamic', badge: '因果上下文', heading: 'GPT · 单向 Transformer 表示', title: '当前位置只能读取左侧历史',
-    summary: '因果掩码挡住未来 Token，每个位置只聚合自己和前文信息，适合逐 Token 生成。',
-    memory: 'GPT 是单向上下文模型：预测下一个 Token 时不能偷看未来。', operation: 'Masked Self-Attention', vector: '因果隐藏状态', meaning: '左侧语境'
+    family: 'dynamic', badge: '生成式预训练', heading: 'GPT · 因果 Decoder 训练流水线', title: '用左侧历史预测下一个 Token',
+    summary: 'Token 与位置向量进入多层 Transformer Decoder；因果遮罩让第 t 个位置只能读取 1…t。',
+    memory: '先用无标注文本做语言模型预训练，再复用同一 Transformer 进行任务微调。', operation: '因果注意力 → LM Head', vector: '当前位置隐藏状态', meaning: '左侧语境'
   },
   bert: {
-    family: 'dynamic', badge: '双向上下文', heading: 'BERT · 双向 Transformer 表示', title: 'Token、Segment、Position 三路装配',
-    summary: '输入表示由词、句段和位置向量相加，再通过双向自注意力同时利用左右文。',
-    memory: 'BERT 编码时可以同时看左右两边；输入是三类 Embedding 的逐位置相加。', operation: '三路相加 + Encoder', vector: '双向隐藏状态', meaning: '双向语境'
-  },
-  contextual: {
-    family: 'dynamic', badge: '上下文编码', heading: '上下文 Embedding · 当前语义向量', title: '整句话会移动同一个词',
-    summary: '“吃苹果”把目标拉向水果簇；“苹果发布手机”则把它拉向科技簇。',
-    memory: '现代 LLM 会根据当前句子，实时重算 Token 的语义坐标。', operation: 'Transformer', vector: '上下文向量', meaning: '当前词义'
+    family: 'dynamic', badge: '掩码双向预训练', heading: 'BERT · 双向 Encoder 训练流水线', title: '每个位置同时聚合左右文',
+    summary: 'Token、Segment、Position 三路表示逐位置相加，再进入多层 Transformer Encoder。',
+    memory: '原始 BERT 通过 MLM 预测被遮住的 Token，并用 NSP 学习句间关系。', operation: '全可见注意力 → MLM / NSP', vector: '双向隐藏状态', meaning: '双向语境'
   }
 };
 
@@ -61,7 +51,6 @@ const OCTANTS = [
 let vectorFamily = 'static';
 let vectorMethod = 'onehot';
 let vectorContext = 'fruit';
-let vectorPosition = 3;
 let word2vecMode = 'skipgram';
 let representationView = 'process';
 let inputTokens = [];
@@ -168,25 +157,11 @@ function methodLayout(method = vectorMethod) {
     return points.map(point => ({ ...point, coords: layout[point.id] }));
   }
 
-  if (method === 'position') {
-    return points.map((point, index) => {
-      const position = index === 0 ? vectorPosition : ((index + vectorPosition - 1) % 8) + 1;
-      const angle = position * Math.PI / 4 + .18;
-      return {
-        ...point,
-        label: index === 0 ? `${point.label}@${vectorPosition}` : point.label,
-        coords: [Math.cos(angle) * .76, (position - 4.5) * .18, Math.sin(angle) * .76],
-        position
-      };
-    });
-  }
-
-  if (['elmo', 'gpt', 'bert', 'contextual'].includes(method) && targetToken === '苹果') {
+  if (['elmo', 'gpt', 'bert'].includes(method) && targetToken === '苹果') {
     const transform = {
       elmo: coords => [coords[0] * .90, coords[1] * .76 + .08, coords[2] * .94],
       gpt: coords => [coords[0] * .78 + .12, coords[1] * .84 - .08, coords[2] * .74 + .10],
-      bert: coords => [coords[0] * 1.04 - .07, coords[1] * .90 + .12, coords[2] * 1.08],
-      contextual: coords => [...coords]
+      bert: coords => [coords[0] * 1.04 - .07, coords[1] * .90 + .12, coords[2] * 1.08]
     }[method];
     const rawActive = vectorContext === 'fruit' ? [-.70, .48, .43] : [.68, .43, -.43];
     const rawAlternate = vectorContext === 'fruit' ? [.68, .43, -.43] : [-.70, .48, .43];
@@ -197,24 +172,24 @@ function methodLayout(method = vectorMethod) {
       label: point.id === 'target' ? `${point.label} · ${vectorContext === 'fruit' ? '水果义' : '公司义'}` : point.label,
       coords: point.id === 'target' ? active : transform(point.coords)
     }));
-    if (method === 'contextual' || method === 'elmo') {
+    if (method === 'elmo') {
       base.push({ id: 'alternate', label: vectorContext === 'fruit' ? '苹果 · 公司义' : '苹果 · 水果义', category: 'ghost', coords: alternate, ghost: true });
     }
     return base;
   }
 
-  if (['word2vec', 'fasttext', 'glove', 'elmo', 'gpt', 'bert', 'contextual'].includes(method)) {
+  if (['word2vec', 'fasttext', 'glove', 'elmo', 'gpt', 'bert'].includes(method)) {
     return points.map((point, index) => {
       const targetLayouts = {
         word2vec: [-.58, .48, .43], glove: [.02, .40, .12], elmo: [-.50, .58, .31],
-        gpt: [-.27, .66, -.20], bert: [-.67, .31, .57], contextual: [-.58, .48, .43]
+        gpt: [-.27, .66, -.20], bert: [-.67, .31, .57]
       };
-      const techLayouts = { elmo: [.56, .54, -.35], gpt: [.70, .26, -.52], bert: [.48, .64, -.58], contextual: [.62, .44, -.46] };
+      const techLayouts = { elmo: [.56, .54, -.35], gpt: [.70, .26, -.52], bert: [.48, .64, -.58] };
       if (index === 0) return { ...point, coords: techLayouts[method] && vectorContext === 'tech' ? techLayouts[method] : targetLayouts[method] };
       const sameInput = point.category === 'input';
-      const phase = { word2vec: 0, glove: .55, elmo: .92, gpt: 1.34, bert: 1.78, contextual: 2.12 }[method] || 0;
+      const phase = { word2vec: 0, glove: .55, elmo: .92, gpt: 1.34, bert: 1.78 }[method] || 0;
       const angle = index * .83 + phase;
-      const dynamicMethod = ['elmo', 'gpt', 'bert', 'contextual'].includes(method);
+      const dynamicMethod = ['elmo', 'gpt', 'bert'].includes(method);
       const center = sameInput ? (dynamicMethod ? [-.34, .44, .22] : [-.48, .38, .32]) : (dynamicMethod ? [.40, -.24, -.42] : [.48, -.34, -.35]);
       return { ...point, coords: [center[0] + Math.cos(angle) * .20, center[1] + Math.sin(angle) * .22, center[2] + Math.cos(angle * 1.4) * .20] };
     });
@@ -231,7 +206,7 @@ function vectorComponents(point) {
     values[Math.max(0, index)] = 1;
     return values;
   }
-  const seed = hashValue(`${vectorMethod}:${point.label}:${vectorContext}:${point.position || vectorPosition}`);
+  const seed = hashValue(`${vectorMethod}:${point.label}:${vectorContext}`);
   return Array.from({ length: 6 }, (_, index) => {
     const coordinate = point.coords[index % 3];
     return Math.max(-.99, Math.min(.99, coordinate * .72 + Math.sin(seed * .0001 + index * 1.37) * .24));
@@ -271,25 +246,75 @@ function visualTokens(limit = 6) {
   return (inputTokens.length ? inputTokens : ['我', '喜欢', '吃', '苹果']).slice(0, limit);
 }
 
-function fastTextFragments() {
-  const source = inputTokens.find(token => /^[A-Za-z]{3,}$/.test(token)) || (/^[A-Za-z]{3,}$/.test(targetToken) ? targetToken : 'apple');
-  const marked = `<${source.toLowerCase()}>`;
+function fastTextFragments(sourceValue = '') {
+  const source = sourceValue || inputTokens.find(token => /^[A-Za-z]{3,}$/.test(token)) || (/^[A-Za-z]{3,}$/.test(targetToken) ? targetToken : 'apple');
+  const characters = ['<', ...String(source).toLowerCase(), '>'];
+  const fragments = [];
+  [3, 4, 5].forEach(size => {
+    for (let index = 0; index <= characters.length - size; index += 1) {
+      fragments.push(characters.slice(index, index + size).join(''));
+    }
+  });
   return {
     source,
-    fragments: Array.from({ length: Math.max(1, marked.length - 2) }, (_, index) => marked.slice(index, index + 3)).slice(0, 7)
+    fragments: unique(fragments).slice(0, 4).length ? unique(fragments).slice(0, 4) : [`<${String(source).toLowerCase()}>`]
   };
 }
 
 function processFrame(kicker, title, body, controls = '') {
   return `<section class="process-frame" role="img" aria-label="${escapeHTML(title)}原理可视化">
-    <header><div><span>${kicker}</span><b>${title}</b></div>${controls}</header>
+    <header><div>${kicker ? `<span>${kicker}</span>` : ''}<b>${title}</b></div>${controls}</header>
     <div class="process-visual">${body}</div>
   </section>`;
+}
+
+function neuronLayer(label, count, activeIndices = [], tone = 'cyan', footer = '') {
+  const active = new Set(activeIndices);
+  const nodes = Array.from({ length: count }, (_, index) => `<i class="${active.has(index) ? 'active' : ''}" style="--node:${index}"><span>${active.has(index) ? '1' : index % 3 === 0 ? '0' : ''}</span></i>`).join('');
+  return `<div class="neural-layer ${tone}"><small>${label}</small><div class="neuron-stack">${nodes}</div>${footer ? `<em>${footer}</em>` : ''}</div>`;
+}
+
+function neuralBridge(label, tone = 'cyan', from = 7, to = 6) {
+  const lines = [];
+  for (let source = 0; source < from; source += 1) {
+    for (let target = 0; target < to; target += 1) {
+      if ((source + target) % 2 === 0 || source === target) {
+        const y1 = 8 + (source * 104 / Math.max(1, from - 1));
+        const y2 = 8 + (target * 104 / Math.max(1, to - 1));
+        lines.push(`<line x1="2" y1="${y1.toFixed(1)}" x2="98" y2="${y2.toFixed(1)}"></line>`);
+      }
+    }
+  }
+  return `<div class="neural-bridge ${tone}"><b>${label}</b><svg viewBox="0 0 100 120" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg><small>可训练权重</small></div>`;
+}
+
+function wordTopologyLines(inputCount, outputCount) {
+  const distribute = count => count === 1
+    ? [105]
+    : Array.from({ length: count }, (_, index) => 30 + index * (150 / Math.max(1, count - 1)));
+  const inputY = distribute(inputCount);
+  const hiddenY = distribute(7);
+  const outputY = distribute(outputCount);
+  const forward = [];
+  inputY.forEach(y1 => hiddenY.forEach(y2 => forward.push(`<line class="input-wire" x1="118" y1="${y1}" x2="488" y2="${y2}"></line>`)));
+  hiddenY.forEach(y1 => outputY.forEach(y2 => forward.push(`<line class="output-wire" x1="512" y1="${y1}" x2="882" y2="${y2}"></line>`)));
+  return `<svg class="word-network-wires" viewBox="0 0 1000 210" preserveAspectRatio="none" aria-hidden="true">
+    <defs><linearGradient id="w2vInputWire" x1="0" x2="1"><stop stop-color="#67e8ff" stop-opacity=".18"></stop><stop offset="1" stop-color="#67e8ff" stop-opacity=".72"></stop></linearGradient><linearGradient id="w2vOutputWire" x1="0" x2="1"><stop stop-color="#b87aed" stop-opacity=".65"></stop><stop offset="1" stop-color="#b87aed" stop-opacity=".18"></stop></linearGradient></defs>
+    ${forward.join('')}
+  </svg>`;
+}
+
+function probabilityHead(words, activeWord) {
+  return `<div class="probability-head">${words.map((word, index) => {
+    const active = word === activeWord || (!activeWord && index === 0);
+    return `<span class="${active ? 'active' : ''}" style="--prob-order:${index}"><b>${escapeHTML(word)}</b><i style="--prob:${active ? 82 : 18 + (index * 11) % 35}%"></i><em>${active ? '.82' : `.${18 + (index * 7) % 31}`}</em></span>`;
+  }).join('')}</div>`;
 }
 
 function renderMethodVisualizer(method) {
   const tokens = visualTokens(5);
   const target = escapeHTML(targetToken);
+  const trainControl = '<div class="micro-switch"><button class="train-pulse-button" data-train-pulse>播放一次训练</button></div>';
   let content = '';
 
   if (method === 'word2vec') {
@@ -297,66 +322,182 @@ function renderMethodVisualizer(method) {
     const windowTokens = unique(tokens.concat(contexts)).slice(0, 7);
     const inputWords = word2vecMode === 'skipgram' ? [targetToken] : contexts;
     const outputWords = word2vecMode === 'skipgram' ? contexts : [targetToken];
-    const sampleText = word2vecMode === 'skipgram'
-      ? contexts.map(word => `<span>(${escapeHTML(targetToken)} → ${escapeHTML(word)})</span>`).join('')
-      : `<span>([${contexts.map(escapeHTML).join(', ')}] → ${target})</span>`;
-    const controls = `<div class="micro-switch"><button data-w2v-mode="skipgram" aria-pressed="${word2vecMode === 'skipgram'}">Skip-gram</button><button data-w2v-mode="cbow" aria-pressed="${word2vecMode === 'cbow'}">CBOW</button></div>`;
-    content = processFrame('WORD2VEC · LOCAL WINDOW OBJECTIVE', word2vecMode === 'skipgram' ? 'Skip-gram：一个中心词，分别预测每个上下文词' : 'CBOW：汇总多个上下文词，只预测一个中心词', `
+    const controls = `<div class="micro-switch"><button data-w2v-mode="skipgram" aria-pressed="${word2vecMode === 'skipgram'}">Skip-gram</button><button data-w2v-mode="cbow" aria-pressed="${word2vecMode === 'cbow'}">CBOW</button><button class="train-pulse-button" data-train-pulse>播放一次训练</button></div>`;
+    content = processFrame('WORD2VEC', word2vecMode === 'skipgram' ? 'Skip-gram · 1 → N' : 'CBOW · N → 1', `
       <div class="w2v-workbench ${word2vecMode}">
-        <div class="w2v-window"><small>训练窗口 · CONTEXT WINDOW</small><div>${windowTokens.map(word => `<span class="${word === targetToken ? 'center' : 'context'}"><i>${word === targetToken ? 'TARGET' : 'CONTEXT'}</i>${escapeHTML(word)}</span>`).join('')}</div></div>
-        <div class="w2v-network-detailed">
-          <div class="w2v-column input"><small>${word2vecMode === 'skipgram' ? '一个输入 xᶜ' : '多个输入 xʲ'}</small>${inputWords.map(word => `<span><b>${escapeHTML(word)}</b><em>one-hot</em></span>`).join('')}</div>
-          <i class="network-wire">→</i>
-          <div class="weight-matrix"><small>输入矩阵</small><b>W</b><em>V × N</em><span>查表取向量</span></div>
-          <i class="network-wire">→</i>
-          <div class="hidden-state"><small>隐藏层</small><b>${word2vecMode === 'skipgram' ? 'vᶜ' : 'h̄'}</b><em>${word2vecMode === 'skipgram' ? 'Wᵀxᶜ' : '(1/C) Σ Wᵀxʲ'}</em></div>
-          <i class="network-wire">→</i>
-          <div class="weight-matrix output"><small>输出矩阵</small><b>W′</b><em>N × V</em><span>Softmax / Negative Sampling</span></div>
-          <i class="network-wire">→</i>
-          <div class="w2v-column output"><small>${word2vecMode === 'skipgram' ? '每个 context 都是目标' : '唯一中心词目标'}</small>${outputWords.map(word => `<span><b>${escapeHTML(word)}</b><em>target</em></span>`).join('')}</div>
+        <div class="w2v-window"><div>${windowTokens.map(word => `<button type="button" class="${word === targetToken ? 'center' : 'context'}" data-workbench-token="${escapeHTML(word)}" aria-pressed="${word === targetToken}" title="点击设为中心词">${escapeHTML(word)}</button>`).join('')}</div></div>
+        <div class="w2v-connected-network ${word2vecMode}">
+          ${wordTopologyLines(inputWords.length, outputWords.length)}
+          <div class="topology-layer input ${inputWords.length === 1 ? 'singular' : 'plural'}"><b class="nn-layer-label">输入层</b><div>${inputWords.map((word, index) => `<span class="word-neuron" style="--node:${index}"><b>${escapeHTML(word)}</b></span>`).join('')}</div></div>
+          <div class="topology-hidden standard-hidden-layer"><b class="hidden-title">隐藏层</b><div class="standard-hidden-column">${Array.from({ length: 7 }, (_, index) => `<i class="${index === 3 ? 'active' : ''}" style="--node:${index}"><span>h${index + 1}</span></i>`).join('')}</div><strong>${word2vecMode === 'skipgram' ? 'h = Wᵀx' : 'h = mean(Wᵀx)'}</strong></div>
+          <div class="topology-layer output ${outputWords.length === 1 ? 'singular' : 'plural'}"><b class="nn-layer-label">输出层</b><div>${outputWords.map((word, index) => `<span class="word-neuron target" style="--node:${index}"><b>${escapeHTML(word)}</b></span>`).join('')}</div></div>
+          <span class="matrix-label input-matrix"><b>W</b></span><span class="matrix-label output-matrix"><b>W′</b></span>
         </div>
-        <div class="w2v-samples"><b>${word2vecMode === 'skipgram' ? `${contexts.length} 个训练样本` : '1 个训练样本'}</b><div>${sampleText}</div><p>${word2vecMode === 'skipgram' ? '同一个中心词会拆成多对 (center, context)，分别优化输出概率。' : '多个 context 的词向量先求和或平均，再用一次 Softmax 预测 center。'}</p></div>
+        <div class="w2v-status-strip"><b>${word2vecMode === 'skipgram' ? '1 → N' : 'N → 1'}</b><span>${word2vecMode === 'skipgram' ? '中心词预测上下文' : '上下文预测中心词'}</span><em>点击上方 Token 切换中心词</em></div>
       </div>`, controls);
   } else if (method === 'fasttext') {
-    const data = fastTextFragments();
-    content = processFrame('CHARACTER SUBWORD ASSEMBLY', `${escapeHTML(data.source)} 的字符零件`, `
-      <div class="word-capsule"><small>完整词</small><b>${escapeHTML(data.source)}</b></div><i class="signal-arrow">+</i>
-      <div class="ngram-rack">${data.fragments.map((part, index) => `<span style="--i:${index}">${escapeHTML(part)}</span>`).join('')}</div>
-      <i class="signal-arrow">→</i><div class="sum-reactor"><b>Σ</b><small>向量相加</small></div><i class="signal-arrow">→</i>
-      <div class="fasttext-output"><div class="dense-vector-mini">${Array.from({ length: 8 }, (_, index) => `<i style="--h:${35 + (hashValue(data.source + index) % 55)}%"></i>`).join('')}</div><code>v(word) = v整词 + Σ v(n-gram)</code><small>低频词与 OOV 仍可由字符零件组装</small></div>`);
+    const contexts = unique(tokens.filter(token => token !== targetToken).concat(['我', '喜欢', '学习'])).filter(token => token !== targetToken).slice(0, 3);
+    const contextAssemblies = contexts.map((word, wordIndex) => {
+      const fragments = fastTextFragments(word).fragments.slice(0, 2);
+      return `<article class="fasttext-assembly-card" style="--context:${wordIndex}">
+        <b>${escapeHTML(word)}</b><span class="word-vector-cell"><strong>v<sub>w</sub></strong></span><i>＋</i><div class="ngram-vector-cells">${fragments.map(fragment => `<span>${escapeHTML(fragment)}</span>`).join('')}</div><em>＝ u<sub>${wordIndex + 1}</sub></em>
+      </article>`;
+    }).join('');
+    const enhancedInputs = contexts.map((word, wordIndex) => `<span class="fasttext-input-vector" style="--context:${wordIndex}"><b>u<sub>${wordIndex + 1}</sub></b><strong>${escapeHTML(word)}</strong><i>${Array.from({ length: 6 }, (_, bar) => `<em style="--h:${24 + ((wordIndex * 19 + bar * 13) % 62)}%"></em>`).join('')}</i></span>`).join('');
+    const hiddenNodes = Array.from({ length: 15 }, (_, index) => `<i class="${index % 4 !== 3 ? 'active' : ''}" style="--node:${index}"><span>h${index + 1}</span></i>`).join('');
+    const leafWords = unique([contexts[0] || '我', targetToken, contexts[1] || '模型', contexts[2] || '学习']).slice(0, 4);
+    while (leafWords.length < 4) leafWords.push(`候选${leafWords.length + 1}`);
+    content = processFrame('', '先装配字符片段，再用多个增强词向量预测一个目标词', `
+      <div class="fasttext-rig fasttext-cbow-rig">
+        <section class="fasttext-assembler"><header><b>词 + 字符片段</b></header><div>${contextAssemblies}</div></section>
+        <div class="fasttext-flow-rail assembly-rail" aria-hidden="true"><i></i></div>
+        <section class="fasttext-input-layer"><header><b>${contexts.length} 路增强词向量</b></header><div class="fasttext-input-vectors">${enhancedInputs}</div></section>
+        <div class="fasttext-flow-rail input-rail" aria-hidden="true"><i></i></div>
+        <section class="fasttext-hidden-layer"><b class="fasttext-layer-title">隐藏层</b><div class="fasttext-mean-reactor"><b>Σ / 平均</b><code>h = mean(u₁ … u<sub>${contexts.length}</sub>)</code></div><div class="fasttext-hidden-field"><div>${hiddenNodes}</div></div></section>
+        <div class="fasttext-flow-rail output-rail" aria-hidden="true"><i></i><b>σ(h·q)</b></div>
+        <section class="hs-output-layer"><header><b>分层 Softmax · 霍夫曼树</b></header><div class="hs-tree">
+          <svg viewBox="0 0 330 194" preserveAspectRatio="none" aria-hidden="true">
+            <line class="hs-edge active" style="--edge:0" x1="31" y1="97" x2="103" y2="55"></line><line class="hs-edge" x1="31" y1="97" x2="103" y2="143"></line>
+            <line class="hs-edge" x1="103" y1="55" x2="177" y2="31"></line><line class="hs-edge active" style="--edge:1" x1="103" y1="55" x2="177" y2="76"></line><line class="hs-edge" x1="103" y1="143" x2="177" y2="121"></line><line class="hs-edge" x1="103" y1="143" x2="177" y2="166"></line>
+            <line class="hs-edge" x1="177" y1="31" x2="280" y2="22"></line><line class="hs-edge active" style="--edge:2" x1="177" y1="76" x2="280" y2="67"></line><line class="hs-edge" x1="177" y1="121" x2="280" y2="116"></line><line class="hs-edge" x1="177" y1="166" x2="280" y2="166"></line>
+          </svg>
+          <span class="hs-node root active" style="--x:31;--y:97"><b>σ₀</b></span><span class="hs-node branch active" style="--x:103;--y:55"><b>σ₁</b></span><span class="hs-node branch" style="--x:103;--y:143"><b>σ</b></span><span class="hs-node branch" style="--x:177;--y:31"><b>σ</b></span><span class="hs-node branch active" style="--x:177;--y:76"><b>σ₂</b></span><span class="hs-node branch" style="--x:177;--y:121"><b>σ</b></span><span class="hs-node branch" style="--x:177;--y:166"><b>σ</b></span>
+          ${leafWords.map((word, index) => `<span class="hs-leaf ${index === 1 ? 'target active' : ''}" style="--x:280;--y:${[22, 67, 116, 166][index]}"><b>${escapeHTML(word)}</b>${index === 1 ? '<em>目标</em>' : ''}</span>`).join('')}
+          <div class="hs-path-code"><span>路径</span><b>0</b><i>→</i><b>1</b><i>→</i><b>0</b></div>
+        </div></section>
+        <div class="fasttext-gradient"><span>N → 1</span><b>输入：词向量 + n-gram</b><code>隐藏：mean(u₁ … u<sub>${contexts.length}</sub>)</code><em>输出：树路径 → ${target}</em></div>
+      </div>`, trainControl);
   } else if (method === 'glove') {
     const words = ['苹果', '水果', '手机', '公司'];
     const counts = [[18, 14, 2, 4], [14, 21, 1, 2], [2, 1, 17, 15], [4, 2, 15, 20]];
-    const matrix = words.map((word, row) => `<div class="co-row"><b>${word}</b>${counts[row].map(value => `<span style="--heat:${value / 22}">${value}</span>`).join('')}</div>`).join('');
-    content = processFrame('GLOBAL CO-OCCURRENCE', '共现次数压缩成全局词向量', `
-      <div class="co-matrix"><div class="co-row heading"><b>Xᵢⱼ</b>${words.map(word => `<span>${word}</span>`).join('')}</div>${matrix}</div>
-      <i class="signal-arrow">→</i><div class="glove-objective"><b>J = Σ f(Xᵢⱼ)(vᵢᵀvⱼ + bᵢ + bⱼ − log Xᵢⱼ)²</b><small>对全局共现矩阵做加权最小二乘拟合</small></div><i class="signal-arrow">→</i>
-      <div class="semantic-split"><span>水果簇</span><b>${target}</b><span>科技簇</span></div>`);
-  } else if (method === 'position') {
-    content = processFrame('ORDER SIGNAL', `位置 ${vectorPosition} 的正弦 / 余弦编码`, `
-      <div class="position-token"><b>${target}</b><small>POSITION ${String(vectorPosition).padStart(2, '0')}</small></div><i class="signal-arrow">+</i>
-      <div class="wave-bank">${[0, 1, 2, 3].map(index => `<span style="--phase:${index * 18}px"><i></i><small>dim ${index * 2}/${index * 2 + 1}</small></span>`).join('')}</div><i class="signal-arrow">→</i>
-      <div class="position-result"><b>顺序坐标</b><small>词义不变，位置改变</small></div>`);
+    const matrix = words.map((word, row) => `<div class="glove-matrix-row"><b>${word}</b>${counts[row].map((value, column) => `<span class="${row === 0 && column === 1 ? 'selected' : ''}" style="--heat:${value / 22}">${value}</span>`).join('')}</div>`).join('');
+    content = processFrame('GLOVE · 全局共现回归', '统计整个语料，再让向量内积逼近 log(Xᵢⱼ)', `
+      <div class="glove-factory">
+        <section class="glove-global-stage">
+          <header><span>①</span><b>构建全局共现矩阵</b><em>窗口 ±2</em></header>
+          <div class="glove-corpus-window"><i>我</i><i>喜欢</i><i class="context">吃</i><i class="focus">苹果</i><i class="context">和</i><i>香蕉</i><span></span></div>
+          <div class="glove-matrix"><div class="glove-matrix-row heading"><b>Xᵢⱼ</b>${words.map(word => `<span>${word}</span>`).join('')}</div>${matrix}</div>
+          <div class="glove-sample-pick"><span>非零样本</span><b>X<sub>苹果, 水果</sub> = 14</b><i>全局累计次数</i></div>
+        </section>
+
+        <section class="glove-regression-stage">
+          <header><span>②</span><b>加权最小二乘拟合</b><em>只训练 Xᵢⱼ &gt; 0</em></header>
+          <div class="glove-vector-pair"><span><i>目标参数</i><b>wᵢ</b><em>苹果</em></span><strong>·</strong><span class="context"><i>上下文参数</i><b>w̃ⱼ</b><em>水果</em></span><strong>＋</strong><span class="glove-bias"><b>bᵢ + b̃ⱼ</b></span></div>
+          <div class="glove-loss-core">
+            <span>预测值</span><b>wᵢᵀw̃ⱼ + bᵢ + b̃ⱼ</b><i>逼近</i><strong>log Xᵢⱼ</strong>
+            <div class="glove-error-beam"><em></em><small>平方误差</small></div>
+          </div>
+          <div class="glove-equations">
+            <b>J = Σ f(Xᵢⱼ) (wᵢᵀw̃ⱼ + bᵢ + b̃ⱼ − log Xᵢⱼ)²</b>
+            <span><i>f(x) = (x / x<sub>max</sub>)<sup>α</sup></i><em>x &lt; x<sub>max</sub></em><i>f(x) = 1</i><em>否则</em></span>
+            <small>x<sub>max</sub> = 100　·　α = 0.75</small>
+          </div>
+        </section>
+
+        <section class="glove-update-stage">
+          <header><span>③</span><b>AdaGrad 更新参数</b><em>learning rate 0.05</em></header>
+          <div class="glove-optimizer"><div class="optimizer-ring"><b>∇J</b><i></i><i></i><i></i></div><span>随机遍历非零矩阵单元</span><em>&lt; 300 维：50 轮　·　其余：100 轮</em></div>
+          <div class="glove-final-vector"><span><b>w<sub>苹果</sub></b><i>目标向量</i></span><strong>＋</strong><span class="context"><b>w̃<sub>苹果</sub></b><i>上下文向量</i></span><strong>＝</strong><span class="result"><b>e<sub>苹果</sub></b><i>最终词向量</i></span></div>
+          <div class="glove-convergence"><i style="--step:18%"></i><i style="--step:38%"></i><i style="--step:62%"></i><i style="--step:81%"></i><i style="--step:94%"></i><span>损失收敛</span></div>
+        </section>
+
+        <div class="glove-compare-deck">
+          <b>GloVe 对比 Word2Vec</b>
+          <span><i>训练信号</i><em>Word2Vec：局部窗口预测</em><strong>GloVe：全局共现计数</strong></span>
+          <span><i>目标函数</i><em>负采样 / 分层 Softmax</em><strong>加权最小二乘</strong></span>
+          <span><i>数据方式</i><em>可持续采样、支持在线更新</em><strong>先统计固定语料矩阵</strong></span>
+          <span><i>最终表示</i><em>通常取输入词向量</em><strong>wᵢ + w̃ᵢ</strong></span>
+        </div>
+      </div>`, trainControl);
   } else if (method === 'elmo') {
-    const row = tokens.map(token => `<span class="${token === targetToken ? 'target' : ''}">${escapeHTML(token)}</span>`).join('<i>→</i>');
-    const reverse = [...tokens].reverse().map(token => `<span class="${token === targetToken ? 'target' : ''}">${escapeHTML(token)}</span>`).join('<i>←</i>');
-    content = processFrame('BIDIRECTIONAL LSTM', '左右语境双向汇流', `
-      <div class="bilstm-lines"><div><small>前向 LSTM</small>${row}</div><div><small>后向 LSTM</small>${reverse}</div></div>
-      <i class="signal-arrow">→</i><div class="layer-fusion"><b>γ Σ sₖhₖ</b><small>多层状态加权</small></div><i class="signal-arrow">→</i><div class="context-node"><b>${target}</b><small>当前语境向量</small></div>`);
+    const elmoTokens = tokens.slice(0, 5);
+    const lstmTrack = (layer, direction) => {
+      const layerClass = layer.includes('1') ? 'layer-one' : 'layer-two';
+      return `<div class="elmo-lstm-track ${direction} ${layerClass}"><b>${layer}</b><div>${elmoTokens.map((token, index) => `<span class="${token === targetToken ? 'target' : ''}" style="--node:${index};--reverse:${elmoTokens.length - 1 - index}"><i>c</i><em>h</em><small>${escapeHTML(token)}</small></span>`).join(direction === 'forward' ? '<strong>→</strong>' : '<strong>←</strong>')}</div><i class="lstm-packet"></i></div>`;
+    };
+    content = processFrame('ELMO · 深层双向语言模型', '每个词都汇合左文、右文与不同网络层', `
+      <div class="elmo-blueprint">
+        <section class="elmo-token-foundry">
+          <header><span>①</span><b>字符 CNN 产生词表示</b></header>
+          <div>${elmoTokens.map(token => `<article class="${token === targetToken ? 'target' : ''}"><b>${escapeHTML(token)}</b><span>${[...token].slice(0, 5).map(char => `<i>${escapeHTML(char)}</i>`).join('')}</span><em>卷积 + Max Pool</em></article>`).join('')}</div>
+        </section>
+        <section class="elmo-bilm-tower">
+          <header><span>②</span><b>两层双向 LSTM</b><em>两个方向分别训练语言模型</em></header>
+          ${lstmTrack('第 2 层', 'backward')}${lstmTrack('第 2 层', 'forward')}${lstmTrack('第 1 层', 'backward')}${lstmTrack('第 1 层', 'forward')}
+          <div class="elmo-target-beam"><i></i><span>${target}</span></div>
+        </section>
+        <section class="elmo-mixer-console">
+          <header><span>③</span><b>按任务融合各层</b></header>
+          <div class="elmo-state-bank"><span><b>h⁰</b><i style="--weight:38%"></i><em>字符词层</em></span><span><b>h¹</b><i style="--weight:67%"></i><em>句法层</em></span><span><b>h²</b><i style="--weight:91%"></i><em>语义层</em></span></div>
+          <div class="elmo-formula"><b>ELMo<sub>k</sub> = γ Σ sⱼ h<sub>k,j</sub></b><span>sⱼ 由下游任务学习</span></div>
+          <div class="elmo-output-orb"><i></i><b>${target}</b><span>${vectorContext === 'fruit' ? '水果语境向量' : '科技语境向量'}</span></div>
+        </section>
+        <div class="model-principle-strip elmo-strip"><span><b>预训练</b>双向语言模型</span><span><b>迁移方式</b>提取多层特征</span><span><b>关键限制</b>LSTM 顺序计算</span></div>
+      </div>`, trainControl);
   } else if (method === 'gpt') {
-    const mask = tokens.map((_, row) => tokens.map((__, column) => `<i class="${column <= row ? 'open' : 'blocked'}"></i>`).join('')).join('');
-    content = processFrame('CAUSAL TRANSFORMER', '当前位置只读取自己和左侧历史', `
-      <div class="causal-sequence">${tokens.map((token, index) => `<span class="${token === targetToken ? 'target' : ''}"><small>t${index + 1}</small>${escapeHTML(token)}</span>`).join('<i>→</i>')}</div>
-      <div class="causal-mask" style="--mask-size:${tokens.length}">${mask}</div><i class="signal-arrow">→</i><div class="next-token"><small>NEXT TOKEN</small><b>?</b></div>`);
+    const gptTokens = tokens.slice(0, 5);
+    const mask = gptTokens.map((_, row) => gptTokens.map((__, column) => `<i class="${column <= row ? 'open' : 'blocked'}" style="--cell:${row + column}"></i>`).join('')).join('');
+    const gptQueryIndex = Math.max(1, gptTokens.length - 2);
+    const gptStep = 240 / Math.max(1, gptTokens.length - 1);
+    const gptBeamLines = gptTokens.map((_, index) => index <= gptQueryIndex ? `<line style="--beam:${index}" x1="${30 + index * gptStep}" y1="34" x2="${30 + gptQueryIndex * gptStep}" y2="116"></line>` : '').join('');
+    content = processFrame('GPT · 因果 Transformer Decoder', '当前位置只看左侧历史，逐步预测下一个 Token', `
+      <div class="gpt-blueprint">
+        <section class="gpt-sequence-stage">
+          <header><span>①</span><b>右移一位构造监督信号</b></header>
+          <div class="gpt-token-rail">${gptTokens.map((token, index) => `<span class="${token === targetToken ? 'target' : ''}"><i>t${index + 1}</i><b>${escapeHTML(token)}</b><em>E<sub>tok</sub> + E<sub>pos</sub></em></span>`).join('<strong>→</strong>')}</div>
+          <div class="gpt-shift-row"><b>输入</b>${gptTokens.slice(0, -1).map(token => `<i>${escapeHTML(token)}</i>`).join('')}<span>预测下一词</span></div>
+          <div class="gpt-shift-row target"><b>标签</b>${gptTokens.slice(1).map(token => `<i>${escapeHTML(token)}</i>`).join('')}<span>交叉熵</span></div>
+        </section>
+        <section class="gpt-attention-stage">
+          <header><span>②</span><b>因果自注意力</b><em>未来位置被遮住</em></header>
+          <div class="gpt-causal-web"><svg viewBox="0 0 300 145" preserveAspectRatio="none" aria-hidden="true">${gptBeamLines}</svg><div>${gptTokens.map((token, index) => `<span class="${index <= gptQueryIndex ? 'visible' : 'future'}" style="--x:${30 + index * gptStep};--beam:${index}"><b>${escapeHTML(token)}</b><i>${index <= gptQueryIndex ? `t${index + 1}` : '未来'}</i></span>`).join('')}</div><strong style="--x:${30 + gptQueryIndex * gptStep}"><b>Q<sub>t${gptQueryIndex + 1}</sub></b><i>只汇聚左侧</i></strong></div>
+          <div class="gpt-mask-board"><div class="causal-mask" style="--mask-size:${gptTokens.length}">${mask}</div><span>可见</span><span>遮挡</span></div>
+          <div class="gpt-head-bank"><i>Q</i><i>K</i><i>V</i><b>Multi-Head</b></div>
+        </section>
+        <section class="gpt-decoder-tower">
+          <header><span>③</span><b>Decoder 堆叠</b><em>× N</em></header>
+          <div class="decoder-layer-card"><span>Masked Multi-Head Attention</span><i>残差连接 + LayerNorm</i><span>Feed Forward Network</span><i>残差连接 + LayerNorm</i></div>
+          <div class="decoder-depth"><i></i><i></i><i></i><b>N 层共享结构</b></div>
+        </section>
+        <section class="gpt-prediction-stage">
+          <header><span>④</span><b>预测下一个 Token</b></header>
+          <div class="gpt-hidden-orb"><i></i><b>h<sub>t</sub></b><span>当前位置隐藏状态</span></div>
+          <div class="gpt-logits">${probabilityHead(['AI', '模型', '学习', '。'], '学习')}</div>
+        </section>
+        <div class="gpt-transfer-rail"><span><b>生成式预训练</b><em>海量无标注文本 · 左到右语言模型</em></span><i>→</i><strong>同一套 Transformer 参数</strong><i>→</i><span><b>任务微调</b><em>分类、相似度、问答等任务输入变换</em></span></div>
+      </div>`, trainControl);
   } else if (method === 'bert') {
     const bertTokens = ['[CLS]', ...tokens.slice(0, 3), '[SEP]'];
-    const row = (kind, labels) => `<div><b>${kind}</b>${labels.map(label => `<span>${escapeHTML(label)}</span>`).join('')}</div>`;
-    content = processFrame('BIDIRECTIONAL ENCODER INPUT', '三路 Embedding 逐位置相加', `
-      <div class="bert-stack">${row('TOKEN', bertTokens)}<i>＋</i>${row('SEGMENT', bertTokens.map(() => 'Eₐ'))}<i>＋</i>${row('POSITION', bertTokens.map((_, index) => `E${index}`))}</div>
-      <i class="signal-arrow">→</i><div class="encoder-reactor"><b>ENCODER</b><small>双向 Self-Attention</small></div>`);
-  } else if (method === 'contextual') {
-    content = processFrame('SAME WORD · DIFFERENT CONTEXT', '同一个词在两句话中移动到不同语义簇', `
-      <div class="context-compare"><div><span>我喜欢吃 <b>苹果</b></span><i>→</i><em class="fruit-vector">水果语义向量</em></div><div><span><b>苹果</b> 发布了新手机</span><i>→</i><em class="tech-vector">公司语义向量</em></div></div>`);
+    const maskedIndex = Math.min(2, bertTokens.length - 2);
+    const visibleTokens = bertTokens.map((token, index) => index === maskedIndex ? '[MASK]' : token);
+    const row = (kind, labels, tone) => `<div class="bert-embedding-row ${tone}"><b>${kind}</b>${labels.map((label, index) => `<span class="${index === maskedIndex ? 'focus' : ''}">${escapeHTML(label)}</span>`).join('')}</div>`;
+    const bertStep = 240 / Math.max(1, bertTokens.length - 1);
+    const bertBeamLines = bertTokens.map((_, index) => `<line style="--beam:${index}" x1="${30 + index * bertStep}" y1="34" x2="${30 + maskedIndex * bertStep}" y2="116"></line>`).join('');
+    content = processFrame('BERT · 双向 Transformer Encoder', '遮住一个词，但 Encoder 仍可同时读取它左右两边', `
+      <div class="bert-blueprint">
+        <section class="bert-input-foundry">
+          <header><span>①</span><b>三路输入逐位置相加</b></header>
+          ${row('Token', visibleTokens, 'token')}${row('Segment', bertTokens.map((_, index) => index < 3 ? 'Eₐ' : 'Eᵦ'), 'segment')}${row('Position', bertTokens.map((_, index) => `E${index}`), 'position')}
+          <div class="bert-sum-beam"><i>＋</i><b>输入表示</b><span>E<sub>token</sub> + E<sub>segment</sub> + E<sub>position</sub></span></div>
+        </section>
+        <section class="bert-attention-stage">
+          <header><span>②</span><b>双向自注意力</b><em>没有因果遮罩</em></header>
+          <div class="bert-query-web"><svg viewBox="0 0 300 145" preserveAspectRatio="none" aria-hidden="true">${bertBeamLines}</svg><div>${bertTokens.map((token, index) => `<span class="${index === maskedIndex ? 'masked' : ''}" style="--x:${30 + index * bertStep};--beam:${index}"><b>${escapeHTML(token)}</b><i>${index < maskedIndex ? '左文' : index > maskedIndex ? '右文' : '目标'}</i></span>`).join('')}</div><strong style="--x:${30 + maskedIndex * bertStep}"><b>Q<sub>[MASK]</sub></b><i>同时汇聚左右</i></strong></div>
+          <div class="bert-visibility"><i>左文</i><b>[MASK]</b><i>右文</i><span>全部可见</span></div>
+        </section>
+        <section class="bert-encoder-tower">
+          <header><span>③</span><b>Encoder 堆叠</b><em>× N</em></header>
+          <div class="encoder-layer-card"><span>Multi-Head Self-Attention</span><i>残差连接 + LayerNorm</i><span>Feed Forward Network</span><i>残差连接 + LayerNorm</i></div>
+          <div class="encoder-output-rail">${bertTokens.map((token, index) => `<span class="${index === maskedIndex ? 'focus' : ''}" style="--encoder-node:${index}"><b>h${index}</b><i>${escapeHTML(token)}</i></span>`).join('')}</div>
+        </section>
+        <section class="bert-objective-stage">
+          <header><span>④</span><b>原始预训练任务</b></header>
+          <div class="bert-objective mlm"><span>MLM</span><b>[MASK] → ${target}</b><em>预测被遮住词</em></div>
+          <div class="bert-objective nsp"><span>NSP</span><b>[CLS] → IsNext?</b><em>判断句子 B 是否接在 A 后</em></div>
+          <div class="bert-loss-core"><b>L = L<sub>MLM</sub> + L<sub>NSP</sub></b><span>联合反向传播</span></div>
+        </section>
+        <div class="model-principle-strip bert-strip"><span><b>上下文方向</b>左文 + 右文</span><span><b>骨干网络</b>Transformer Encoder</span><span><b>迁移方式</b>整网微调 + 任务头</span></div>
+      </div>`, trainControl);
   }
 
   $('#methodVisualizer').innerHTML = content;
@@ -445,8 +586,7 @@ function updateMethod(method, instant = false) {
   $$('[data-method-family]').forEach(bank => { bank.hidden = bank.dataset.methodFamily !== vectorFamily; });
   $$('.method-bank button').forEach(button => button.classList.toggle('active', button.dataset.vectorMethod === method));
   $('#dynamicControls').hidden = vectorFamily !== 'dynamic';
-  $('#positionSlider').hidden = method !== 'position';
-  $('#contextPresets').hidden = !['elmo', 'gpt', 'bert', 'contextual'].includes(method);
+  $('#contextPresets').hidden = !['elmo', 'gpt', 'bert'].includes(method);
   $('#spaceHeading').textContent = info.heading;
   $('#methodBadge').textContent = info.badge;
   $('#methodTitle').textContent = info.title;
@@ -459,11 +599,9 @@ function updateMethod(method, instant = false) {
   const oneHotMode = method === 'onehot';
   $('#oneHotStage').hidden = !oneHotMode;
   $('#componentLabel').textContent = oneHotMode ? '完整 One-hot 向量' : '向量片段';
-  $('#spaceStatus').textContent = ['elmo', 'gpt', 'bert', 'contextual'].includes(method)
+  $('#spaceStatus').textContent = ['elmo', 'gpt', 'bert'].includes(method)
     ? '切换语境，观察同一目标向量在水果簇与科技簇之间移动。'
-    : method === 'position'
-      ? '拖动序列位置，目标向量会沿位置轨迹跨越不同象限。'
-      : '所有端点都由原点 O 发出，线段方向与长度共同构成向量。';
+    : '所有端点都由原点 O 发出，线段方向与长度共同构成向量。';
   const points = methodLayout(method);
   selectedPointId = 'target';
   if (oneHotMode) {
@@ -489,7 +627,6 @@ function renderTokenSelector(preferred = '') {
       || [...inputTokens].filter(token => /[\p{L}\p{N}]/u.test(token)).sort((left, right) => right.length - left.length)[0]
       || inputTokens[0];
   targetToken = inputTokens.includes(preferred) ? preferred : teachingCandidate;
-  $('#embeddingTokens').innerHTML = inputTokens.map(token => `<button class="${token === targetToken ? 'active' : ''}" data-target-token="${escapeHTML(token)}">${escapeHTML(token)}</button>`).join('');
   $('#contextPresets').querySelector('[data-context="fruit"] b').textContent = targetToken === '苹果' ? '我喜欢吃苹果' : text;
   $('#contextPresets').querySelector('[data-context="tech"] b').textContent = targetToken === '苹果' ? '苹果发布了新手机' : `${targetToken} 出现在另一段语境中`;
   updateMethod(vectorMethod, true);
@@ -889,15 +1026,6 @@ $('#embeddingText').addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') $('#loadEmbeddingInput').click();
 });
 
-$('#embeddingTokens').addEventListener('click', event => {
-  const button = event.target.closest('[data-target-token]');
-  if (!button) return;
-  targetToken = button.dataset.targetToken;
-  selectedPointId = 'target';
-  $$('#embeddingTokens button').forEach(item => item.classList.toggle('active', item === button));
-  renderTokenSelector(targetToken);
-});
-
 $('#oneHotMatrix').addEventListener('click', event => {
   const row = event.target.closest('[data-onehot-id]');
   if (!row) return;
@@ -908,10 +1036,25 @@ $('#oneHotMatrix').addEventListener('click', event => {
 });
 
 $('#methodVisualizer').addEventListener('click', event => {
-  const button = event.target.closest('[data-w2v-mode]');
-  if (!button) return;
-  word2vecMode = button.dataset.w2vMode;
-  renderMethodVisualizer('word2vec');
+  const tokenButton = event.target.closest('[data-workbench-token]');
+  if (tokenButton) {
+    targetToken = tokenButton.dataset.workbenchToken;
+    selectedPointId = 'target';
+    renderTokenSelector(targetToken);
+    return;
+  }
+  const modeButton = event.target.closest('[data-w2v-mode]');
+  if (modeButton) {
+    word2vecMode = modeButton.dataset.w2vMode;
+    renderMethodVisualizer('word2vec');
+    return;
+  }
+  const pulseButton = event.target.closest('[data-train-pulse]');
+  if (!pulseButton) return;
+  const visualizer = $('#methodVisualizer');
+  visualizer.classList.remove('training-pulse');
+  requestAnimationFrame(() => visualizer.classList.add('training-pulse'));
+  setTimeout(() => visualizer.classList.remove('training-pulse'), 5200);
 });
 
 $('#representationSwitch').addEventListener('click', event => {
@@ -935,12 +1078,6 @@ $$('.context-presets button').forEach(button => button.addEventListener('click',
   $$('.context-presets button').forEach(item => item.classList.toggle('active', item === button));
   updateMethod(vectorMethod);
 }));
-
-$('#vectorPosition').addEventListener('input', event => {
-  vectorPosition = Number(event.target.value);
-  $('#vectorPositionValue').textContent = String(vectorPosition);
-  updateMethod('position');
-});
 
 $('#rotateVectorSpace').addEventListener('click', event => {
   vectorSpace.autoRotate = !vectorSpace.autoRotate;

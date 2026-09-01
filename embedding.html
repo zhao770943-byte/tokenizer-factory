@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#020409">
-  <meta name="description" content="在暗黑科幻向量车间中互动比较静态编码、位置编码与上下文 Embedding，并观察八象限三维语义向量。">
+  <meta name="description" content="在暗黑科幻向量车间中互动比较 One-hot、Word2Vec、FastText、GloVe、ELMo、GPT 与 BERT，并观察神经网络训练和三维语义投影。">
   <title>Embedding 向量车间｜LLM 原理加工厂</title>
-  <link rel="stylesheet" href="embedding-workshop.css">
+  <link rel="stylesheet" href="embedding-workshop.css?v=20260901-models2">
 </head>
 <body data-vector-family="static">
   <div class="vector-scanlines" aria-hidden="true"></div>
@@ -26,38 +26,31 @@
 
     <section class="vector-deck" id="vectorDeck">
       <aside class="vector-control-bay">
-        <header><i></i><div><span>输入原料</span><b>从文字选择目标 Token</b></div></header>
+        <header><i></i><div><span>输入原料</span><b>输入教学语料</b></div></header>
 
         <label class="vector-input" for="embeddingText">
           <textarea id="embeddingText" maxlength="96" spellcheck="false">我喜欢吃苹果</textarea>
           <button id="loadEmbeddingInput">生成向量 <span>→</span></button>
         </label>
-        <div class="token-selector">
-          <span>选择要观察的 Token</span>
-          <div id="embeddingTokens" role="group" aria-label="选择目标 Token"></div>
-        </div>
-
         <div class="family-switch" role="tablist" aria-label="静态编码与动态编码">
-          <button class="active" role="tab" aria-selected="true" data-vector-family="static">
-            <span>01</span><b>静态编码舱</b><small>同一个词，表示固定</small>
+          <button class="active" role="tab" aria-selected="true" aria-label="切换到静态编码" data-vector-family="static">
+            <i class="family-core" aria-hidden="true"></i><b>静态编码</b>
           </button>
-          <button role="tab" aria-selected="false" data-vector-family="dynamic">
-            <span>02</span><b>动态编码舱</b><small>位置或语境改变坐标</small>
+          <button role="tab" aria-selected="false" aria-label="切换到动态编码" data-vector-family="dynamic">
+            <i class="family-core" aria-hidden="true"></i><b>动态编码</b>
           </button>
         </div>
 
         <div class="method-bank" data-method-family="static">
           <button class="active" data-vector-method="onehot"><b>One-hot</b><span>身份基线</span></button>
           <button data-vector-method="word2vec"><b>Word2Vec</b><span>局部上下文</span></button>
-          <button data-vector-method="fasttext"><b>FastText</b><span>字符 n-gram</span></button>
+          <button data-vector-method="fasttext"><b>FastText</b><span>n-gram + 分层 Softmax</span></button>
           <button data-vector-method="glove"><b>GloVe</b><span>全局共现</span></button>
         </div>
         <div class="method-bank" data-method-family="dynamic" hidden>
-          <button data-vector-method="position"><b>位置编码</b><span>Token + 顺序</span></button>
           <button data-vector-method="elmo"><b>ELMo</b><span>双向 LSTM</span></button>
           <button data-vector-method="gpt"><b>GPT</b><span>单向 Transformer</span></button>
           <button data-vector-method="bert"><b>BERT</b><span>双向 Transformer</span></button>
-          <button data-vector-method="contextual"><b>上下文 Embedding</b><span>Token + 整句语境</span></button>
         </div>
 
         <div class="dynamic-controls" id="dynamicControls" hidden>
@@ -65,10 +58,6 @@
             <button class="active" data-context="fruit"><span>语境 A</span><b>我喜欢吃苹果</b></button>
             <button data-context="tech"><span>语境 B</span><b>苹果发布了新手机</b></button>
           </div>
-          <label class="position-slider" id="positionSlider" for="vectorPosition" hidden>
-            <span>序列位置 <b id="vectorPositionValue">3</b></span>
-            <input id="vectorPosition" type="range" min="1" max="8" value="3">
-          </label>
         </div>
 
         <div class="method-conclusion" aria-live="polite">
@@ -168,6 +157,6 @@
       </aside>
     </section>
   </main>
-  <script src="embedding-workshop.js"></script>
+  <script src="embedding-workshop.js?v=20260901-models2"></script>
 </body>
 </html>
