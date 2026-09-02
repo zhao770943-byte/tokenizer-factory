@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#020409">
-  <meta name="description" content="在暗黑科幻向量车间中互动比较 One-hot、Word2Vec、FastText、GloVe、ELMo、GPT 与 BERT，并观察神经网络训练和三维语义投影。">
+  <meta name="description" content="在暗黑科幻向量车间中互动比较 One-hot、Word2Vec、FastText、GloVe、ELMo、GPT 与 BERT，并观察绝对、相对、旋转位置编码如何进入 Transformer。">
   <title>Embedding 向量车间｜LLM 原理加工厂</title>
-  <link rel="stylesheet" href="embedding-workshop.css?v=20260901-models2">
+  <link rel="stylesheet" href="embedding-workshop.css?v=20260902-position-ui3">
 </head>
 <body data-vector-family="static">
   <div class="vector-scanlines" aria-hidden="true"></div>
@@ -22,7 +22,16 @@
         <span><b>[0.21, −0.34, …]</b><small>稠密向量</small></span><i>→</i>
         <span><b>↗</b><small>语义坐标</small></span>
       </div>
+      <a class="position-lab-entry" href="position.html" data-position-link aria-label="进入位置编码工作台"><i></i><b>进入 Position 位置编码舱</b><span>MODULE 03 →</span></a>
     </header>
+
+    <nav class="factory-module-nav" aria-label="LLM 原理加工厂模块导航">
+      <a href="index.html"><span>01</span><div><b>Tokenizer 加工厂</b><small>自然语言 → Token</small></div><em>已完成</em></a>
+      <i aria-hidden="true">→</i>
+      <a class="current" href="#vectorDeck"><span>02</span><div><b>Embedding 向量车间</b><small>Token ID → 稠密向量</small></div><em>当前车间</em></a>
+      <i aria-hidden="true">→</i>
+      <a class="position-module" href="position.html" data-position-link><span>03</span><div><b>Position 位置编码舱</b><small>序列关系 → Transformer</small></div><em>进入车间</em></a>
+    </nav>
 
     <section class="vector-deck" id="vectorDeck">
       <aside class="vector-control-bay">
@@ -156,7 +165,8 @@
         </div>
       </aside>
     </section>
+
   </main>
-  <script src="embedding-workshop.js?v=20260901-models2"></script>
+  <script src="embedding-workshop.js?v=20260902-position-ui3"></script>
 </body>
 </html>

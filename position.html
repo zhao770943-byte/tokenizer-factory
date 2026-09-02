@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#020409">
+  <meta name="description" content="LLM 原理加工厂第三模块：交互学习绝对位置编码、相对位置编码、ALiBi、T5、DeBERTa 与 RoPE。">
+  <title>Position 位置编码舱｜LLM 原理加工厂</title>
+  <link rel="stylesheet" href="embedding-workshop.css?v=20260902-position-ui3">
+</head>
+<body data-position-only>
+  <div class="vector-scanlines" aria-hidden="true"></div>
+  <main class="position-page">
+    <header class="position-page-topbar">
+      <a class="back-factory" href="embedding.html" data-embedding-link><span>‹</span><b>返回 Embedding 向量车间</b></a>
+      <div class="vector-title">
+        <span>TRANSFORMER FACTORY · WORKSHOP 03</span>
+        <h1><em>Position</em> 位置编码舱</h1>
+      </div>
+      <div class="position-page-output" aria-label="位置编码输出">
+        <span>输出交接</span><b>顺序关系</b><i>→</i><strong>Transformer Attention</strong>
+      </div>
+    </header>
+
+    <nav class="factory-module-nav" aria-label="LLM 原理加工厂模块导航">
+      <a href="index.html"><span>01</span><div><b>Tokenizer 加工厂</b><small>自然语言 → Token</small></div><em>已完成</em></a>
+      <i aria-hidden="true">→</i>
+      <a href="embedding.html" data-embedding-link><span>02</span><div><b>Embedding 向量车间</b><small>Token ID → 稠密向量</small></div><em>上一车间</em></a>
+      <i aria-hidden="true">→</i>
+      <a class="current position-module" href="#positionWorkbench" aria-current="page"><span>03</span><div><b>Position 位置编码舱</b><small>序列关系 → Transformer</small></div><em>当前车间</em></a>
+    </nav>
+
+    <section class="module-transfer-corridor" aria-label="从 Tokenizer、Embedding 到位置编码的连续加工通道">
+      <div class="transfer-corridor-label"><i></i><span>DATA HANDOFF · 01 → 02 → 03</span><i></i></div>
+      <div class="transfer-corridor-main">
+        <article class="transfer-station token-station">
+          <span>模块 01</span><b>Tokenizer 加工厂</b>
+          <strong id="transferTokens">我 · 喜欢 · 吃 · 苹果</strong>
+          <em>自然语言拆成离散 Token</em>
+        </article>
+        <i class="transfer-beam" aria-hidden="true">→</i>
+        <article class="transfer-station id-station">
+          <span>模块 02 · 输入</span><b>Token ID</b>
+          <strong id="transferIds">[ 101, 205, 876, 56 ]</strong>
+          <em>词表索引送入向量层</em>
+        </article>
+        <i class="transfer-beam" aria-hidden="true">→</i>
+        <article class="transfer-station vector-station">
+          <span>模块 02 · 输出</span><b>Token Embedding</b>
+          <strong>E<sub>token</sub> = [0.21, −0.34, …]</strong>
+          <em>每个 Token 变成稠密语义向量</em>
+        </article>
+        <i class="transfer-beam gold" aria-hidden="true">＋</i>
+        <article class="transfer-station position-station">
+          <span>模块 03 · 当前</span><b>Position Encoding</b>
+          <strong id="transferPositionSignal">E<sub>position</sub></strong>
+          <em id="transferPositionDetail">把顺序关系送进 Transformer</em>
+        </article>
+        <i class="transfer-beam" aria-hidden="true">→</i>
+        <article class="transfer-station transformer-station">
+          <span>下一站</span><b>Transformer</b>
+          <strong>Attention</strong>
+          <em>理解顺序、距离与上下文关系</em>
+        </article>
+      </div>
+    </section>
+
+    <section class="position-workbench" id="positionWorkbench" aria-labelledby="positionHeading">
+      <header class="position-lab-header">
+        <div class="position-lab-kicker"><i></i><span>MODULE 03 · TRANSFORMER FACTORY · POSITION MODULE</span><i></i></div>
+        <h2 id="positionHeading"><em>Position</em> 位置编码工作台</h2>
+        <p>承接 Tokenizer 与 Embedding 的输出：同一组 Token 可把位置加到输入、写进 Attention 分数，或编码为 Q / K 的旋转角。</p>
+        <div class="position-lab-route" aria-label="位置编码在 Transformer 中的作用位置">
+          <span><b>Token</b><small>离散输入</small></span><i>→</i><span><b>E<sub>tok</sub></b><small>词向量</small></span><i>→</i><strong>位置模块</strong><i>→</i><span><b>Transformer</b><small>注意力计算</small></span>
+        </div>
+      </header>
+
+      <div class="position-lab-controls">
+        <div class="position-mode-tabs" role="tablist" aria-label="选择位置编码类型">
+          <button class="active" role="tab" aria-selected="true" data-position-mode="absolute"><span>01</span><b>绝对位置编码</b><small>Position → Embedding</small></button>
+          <button role="tab" aria-selected="false" data-position-mode="relative"><span>02</span><b>相对位置编码</b><small>Distance → Attention</small></button>
+          <button role="tab" aria-selected="false" data-position-mode="rope"><span>03</span><b>旋转位置编码</b><small>Rotate → Q / K</small></button>
+        </div>
+        <div class="position-signal-readout"><span>POSITION SIGNAL</span><b id="positionSignalName">固定三角位置向量</b><em id="positionSignalDetail">sin / cos · d<sub>model</sub> = 8</em></div>
+      </div>
+
+      <div class="position-lab-body" id="positionLabBody" aria-live="polite"></div>
+
+      <footer class="position-lab-footer">
+        <div><i class="status-dot"></i><span id="positionLabStatus">位置编码工作台已就绪</span></div>
+        <div class="position-memory"><b>核心记忆</b><span id="positionMemory">绝对位置把位置向量直接加进输入表示；相对位置把距离交给注意力。</span></div>
+      </footer>
+    </section>
+  </main>
+  <script src="embedding-workshop.js?v=20260902-position-ui3"></script>
+</body>
+</html>

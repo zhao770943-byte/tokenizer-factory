@@ -56,6 +56,12 @@ let representationView = 'process';
 let inputTokens = [];
 let targetToken = '苹果';
 let selectedPointId = 'target';
+let positionMode = 'absolute';
+let absolutePositionVariant = 'sinusoidal';
+let positionIndex = 2;
+let relativeQueryIndex = 2;
+let ropeAngle = 30;
+let vectorSpace = null;
 
 function tokenizeEmbeddingText(text) {
   const raw = text.match(/[\u4e00-\u9fff]+|[A-Za-z]+(?:'[A-Za-z]+)?|\d+(?:\.\d+)?|[^\s]/g) || [];
@@ -503,6 +509,210 @@ function renderMethodVisualizer(method) {
   $('#methodVisualizer').innerHTML = content;
 }
 
+function positionTokens() {
+  const pageText = $('#embeddingText')?.value || new URLSearchParams(location.search).get('text') || localStorage.getItem('embeddingFactoryInput') || '我喜欢吃苹果';
+  const tokens = inputTokens.length ? inputTokens : tokenizeEmbeddingText(pageText);
+  return (tokens.length ? tokens : ['我', '喜欢', '吃', '苹果']).slice(0, 6);
+}
+
+function positionVector(position, dimension = 8) {
+  return Array.from({ length: dimension }, (_, index) => {
+    const frequency = Math.pow(10000, (2 * Math.floor(index / 2)) / dimension);
+    return index % 2 === 0 ? Math.sin(position / frequency) : Math.cos(position / frequency);
+  });
+}
+
+function toyEmbedding(token, dimension = 4) {
+  return Array.from({ length: dimension }, (_, index) => ((hashValue(`token-vector-${token}-${index}`) % 160) - 80) / 100);
+}
+
+function formatVector(vector) {
+  return `[${vector.map(value => value.toFixed(2)).join(', ')}]`;
+}
+
+function normalizedWeights(values) {
+  const max = Math.max(...values);
+  const exps = values.map(value => Math.exp(value - max));
+  const sum = exps.reduce((total, value) => total + value, 0);
+  return exps.map(value => value / sum);
+}
+
+function syncModuleLinks(text) {
+  const safeText = (text || '我喜欢吃苹果').trim() || '我喜欢吃苹果';
+  $$('[data-position-link]').forEach(link => { link.href = `position.html?text=${encodeURIComponent(safeText)}`; });
+  $$('[data-embedding-link]').forEach(link => { link.href = `embedding.html?text=${encodeURIComponent(safeText)}`; });
+}
+
+function relativeBucket(distance) {
+  return Math.max(-4, Math.min(4, distance));
+}
+
+function positionTokenRail(tokens, activeIndex) {
+  return `<div class="position-token-rail">${tokens.map((token, index) => `<button type="button" class="${index === activeIndex ? 'active' : ''}" data-position-index="${index}"><i>${index}</i><b>${escapeHTML(token)}</b><small>p${index}</small></button>`).join('<span class="rail-arrow">→</span>')}</div>`;
+}
+
+function absolutePositionView(tokens) {
+  const rows = tokens.map((token, tokenIndex) => {
+    const vector = absolutePositionVariant === 'sinusoidal'
+      ? positionVector(tokenIndex)
+      : Array.from({ length: 8 }, (_, index) => ((hashValue(`learned-position-${tokenIndex}-${index}`) % 180) - 90) / 100);
+    return `<div class="absolute-vector-row ${tokenIndex === positionIndex ? 'active' : ''}" style="--row:${tokenIndex}" data-position-index="${tokenIndex}"><b>p${tokenIndex}</b><span>${escapeHTML(token)}</span><div>${vector.map((value, index) => `<i style="--value:${value};--dim:${index}" title="维度 ${index + 1}: ${value.toFixed(2)}"><em></em></i>`).join('')}</div><code>[${vector.slice(0, 4).map(value => value.toFixed(2)).join(', ')}, …]</code></div>`;
+  }).join('');
+  const activeVector = absolutePositionVariant === 'sinusoidal' ? positionVector(positionIndex) : Array.from({ length: 8 }, (_, index) => ((hashValue(`learned-position-${positionIndex}-${index}`) % 180) - 90) / 100);
+  const activeToken = tokens[positionIndex] || tokens[0];
+  const tokenVector = toyEmbedding(activeToken);
+  const positionSlice = activeVector.slice(0, 4);
+  const injectedVector = tokenVector.map((value, index) => value + positionSlice[index]);
+  return `<div class="absolute-lab-grid">
+    <section class="position-machine absolute-machine">
+      <header class="lab-section-head"><span>STATION A</span><b>位置向量注入器</b><em>Position → Embedding</em><div class="absolute-variant-tabs"><button class="${absolutePositionVariant === 'sinusoidal' ? 'active' : ''}" data-absolute-variant="sinusoidal">固定三角</button><button class="${absolutePositionVariant === 'learned' ? 'active' : ''}" data-absolute-variant="learned">可学习</button></div></header>
+      <div class="embedding-add-stage"><div class="add-source"><span>Token Embedding</span><b>E<sub>tok</sub></b><i>语义</i></div><strong>＋</strong><div class="add-source position-source"><span>Position Embedding</span><b>E<sub>pos</sub></b><i>位置</i></div><strong>＝</strong><div class="add-result"><span>Transformer Input</span><b>E<sub>tok</sub> + E<sub>pos</sub></b><i>注入后表示</i></div></div>
+      <div class="position-calculation-trace"><span>当前加工件 · p${positionIndex}「${escapeHTML(activeToken)}」</span><div><b>E<sub>tok</sub> ${formatVector(tokenVector)}</b><i>＋</i><b>E<sub>pos</sub> ${formatVector(positionSlice)}</b><i>＝</i><strong>X<sub>p${positionIndex}</sub> ${formatVector(injectedVector)}</strong></div></div>
+      <div class="absolute-wave"><span class="wave-label">${absolutePositionVariant === 'sinusoidal' ? '固定三角位置编码 · sin / cos' : '可学习绝对位置编码 · Position Embedding'}</span><div class="wave-lines"><i></i><i></i><i></i><i></i></div><span class="wave-axis">position 0　　1　　2　　3　　4　　5</span></div>
+    </section>
+    <section class="position-machine absolute-table-machine">
+      <header class="lab-section-head"><span>STATION B</span><b>序列位置扫描</b><em>点击任意位置查看向量</em></header>
+      <div class="absolute-vector-table"><div class="absolute-table-head"><span>位置</span><span>Token</span><b>8 维位置向量的维度能量</b><code>向量片段</code></div>${rows}</div>
+    </section>
+    <section class="position-explain-card absolute-explain">
+      <div class="formula-plaque"><span>位置 p 的固定编码</span><b>PE<sub>(p, 2i)</sub> = sin(p / 10000<sup>2i/d</sup>)</b><b>PE<sub>(p, 2i+1)</sub> = cos(p / 10000<sup>2i/d</sup>)</b></div>
+      <div class="position-meter"><span>当前 p${positionIndex}</span><div>${activeVector.map((value, index) => `<i style="--value:${value};--dim:${index}"><em>${index % 2 ? 'cos' : 'sin'}</em></i>`).join('')}</div></div>
+      <p>${absolutePositionVariant === 'sinusoidal' ? '固定三角编码不需要为每个位置另存参数；它可按公式计算任意位置，但“能计算”不等于模型一定能泛化到远超训练长度的序列。' : '可学习编码为每个位置分配一个可训练向量，表达能力强，但位置表通常设有最大长度，超出训练过的位置必须扩展或重新训练。'}</p>
+      <div class="absolute-limit-grid"><span><b>关系可能被稀释</b><em>位置信号先混进输入向量；进入多层注意力后，关系并不是被显式保存的。</em></span><span><b>绝对坐标不等于关系</b><em>Token 在 p=8 不代表它与 p=7、p=2 的距离关系已被直接建模。</em></span><span><b>两类长度边界不同</b><em>可学习表有明确最大位置；三角编码可外推计算，但模型仍可能不擅长超长分布。</em></span></div>
+    </section>
+  </div>`;
+}
+
+function relativePositionView(tokens) {
+  const matrix = tokens.map((_, row) => `<div class="relative-matrix-row">${tokens.map((__, column) => {
+    const distance = column - row;
+    const bucket = relativeBucket(distance);
+    return `<button type="button" class="${row === relativeQueryIndex ? 'query-row' : ''} ${column === relativeQueryIndex ? 'query-column' : ''} ${row === relativeQueryIndex && column === relativeQueryIndex ? 'query-cell' : ''}" data-relative-query="${row}" style="--distance:${bucket};--cell:${row + column}" title="相对距离 ${distance}"><b>${distance > 0 ? '+' : ''}${distance}</b><small>${bucket < 0 ? '左' : bucket > 0 ? '右' : '同位'}</small></button>`;
+  }).join('')}</div>`).join('');
+  const biasBars = tokens.map((token, index) => {
+    const distance = index - relativeQueryIndex;
+    const penalty = Math.abs(distance) * 18;
+    return `<span class="bias-bar ${index === relativeQueryIndex ? 'active' : ''}" style="--bar:${Math.max(18, 100 - penalty)}%;--bar-index:${index}"><b>${escapeHTML(token)}</b><i></i><em>${distance === 0 ? '0' : `−${Math.abs(distance)}m`}</em></span>`;
+  }).join('');
+  const attentionLogits = tokens.map((_, index) => -Math.abs(index - relativeQueryIndex) * .7);
+  const attentionWeights = normalizedWeights(attentionLogits);
+  const attentionTrace = tokens.map((token, index) => `<span class="${index === relativeQueryIndex ? 'active' : ''}" style="--attention:${Math.round(attentionWeights[index] * 100)}%"><b>${escapeHTML(token)}</b><i>${Math.round(attentionWeights[index] * 100)}%</i></span>`).join('');
+  return `<div class="relative-lab-grid">
+    <section class="position-machine relative-attention-machine">
+      <header class="lab-section-head"><span>STATION A</span><b>相对距离矩阵</b><em>点击行选择 Query 位置</em></header>
+      ${positionTokenRail(tokens, relativeQueryIndex)}
+      <div class="relative-matrix-wrap"><div class="matrix-axis matrix-axis-top">Key →</div><div class="matrix-axis matrix-axis-left">Query ↓</div><div class="relative-matrix"><div class="relative-matrix-head">${tokens.map((token, index) => `<span>p${index}<b>${escapeHTML(token)}</b></span>`).join('')}</div>${matrix}</div></div>
+      <div class="relative-query-readout"><b>Q · p${relativeQueryIndex}</b><span>当前关注：${escapeHTML(tokens[relativeQueryIndex])}</span><em>每个格子只记录 Key 与 Query 的相对距离</em></div>
+    </section>
+    <section class="position-machine alibi-machine">
+      <header class="lab-section-head"><span>STATION B</span><b>ALiBi 注意力偏置</b><em>直接修正 Attention Score</em></header>
+      <div class="attention-formula"><span>score<sub>ij</sub> = q<sub>i</sub>k<sub>j</sub><sup>T</sup> / √d</span><b>− m<sub>h</sub> · (i − j)</b><i>ALiBi 的因果注意力中 j ≤ i：越久远的历史，线性惩罚越大</i></div>
+      <div class="bias-bars">${biasBars}</div>
+      <div class="attention-trace"><span>示意：加入距离偏置后，Q<sub>p${relativeQueryIndex}</sub> 对各 Key 的 Softmax 权重</span><div>${attentionTrace}</div></div>
+      <div class="length-chip"><b>长度外推</b><span>没有固定位置矩阵，序列变长也能继续计算</span></div>
+    </section>
+    <section class="relative-family-card">
+      <header><span>相对位置家族</span><b>从“坐标”转向“关系”</b></header>
+      <div class="relative-method-grid"><article class="selected"><b>ALiBi</b><span>线性距离偏置</span><em>在每个头的 Attention Logit 上减去距离惩罚；没有位置表，擅长长度外推。</em></article><article><b>XLNet</b><span>R<sub>i−j</sub> 相对向量</span><em>内容—内容、内容—位置等项共同计算；u、v 用来区分内容和位置贡献。</em></article><article><b>T5</b><span>相对位置桶</span><em>先把距离 b(i−j) 映射到桶，再给每个注意力头加入一个可学习标量偏置。</em></article><article><b>DeBERTa</b><span>解耦注意力</span><em>保留内容—内容、内容—位置、位置—内容三项；常以 √(3d) 缩放注意力。</em></article></div>
+      <p>相对位置编码不先问“你在第几格”，而是直接把 i 与 j 的距离或相对向量交给 Attention。它更贴近语言中的邻接、依赖和顺序关系。</p>
+    </section>
+  </div>`;
+}
+
+function ropePositionView(tokens) {
+  const activeToken = tokens[Math.min(positionIndex, tokens.length - 1)] || tokens[0];
+  const angle = Number(ropeAngle);
+  const radians = angle * Math.PI / 180;
+  const x = Math.cos(radians) * 76;
+  const y = Math.sin(radians) * 76;
+  const keyAngle = angle + 28;
+  const keyRadians = keyAngle * Math.PI / 180;
+  const kx = Math.cos(keyRadians) * 76;
+  const ky = Math.sin(keyRadians) * 76;
+  return `<div class="rope-lab-grid">
+    <section class="position-machine rope-rotor-machine">
+      <header class="lab-section-head"><span>STATION A</span><b>二维旋转舱</b><em>选择位置，观察角度变化</em></header>
+      ${positionTokenRail(tokens, positionIndex)}
+      <div class="rope-rotor-stage"><div class="rope-plane"><span class="rope-axis-x">x₁</span><span class="rope-axis-y">x₂</span><i class="rope-orbit"></i><svg viewBox="0 0 220 220" aria-label="RoPE 二维向量旋转"><line class="rope-guide" x1="110" y1="110" x2="${110 + x}" y2="${110 - y}"></line><line class="rope-key-guide" x1="110" y1="110" x2="${110 + kx}" y2="${110 - ky}"></line><circle class="rope-origin" cx="110" cy="110" r="4"></circle><circle class="rope-tip" cx="${110 + x}" cy="${110 - y}" r="7"></circle><circle class="rope-key-tip" cx="${110 + kx}" cy="${110 - ky}" r="7"></circle><path class="rope-angle-arc" d="M 146 110 A 36 36 0 0 0 ${110 + Math.cos(radians) * 36} ${110 - Math.sin(radians) * 36}"></path></svg><b class="rope-q-label" style="--x:${x};--y:${y}">Q′ · p${positionIndex}</b><b class="rope-k-label" style="--x:${kx};--y:${ky}">K′ · p${Math.min(tokens.length - 1, positionIndex + 1)}</b><span class="rope-angle-label">θ = ${angle}°</span></div></div>
+      <label class="rope-angle-control" for="ropeAngle"><span>旋转角 θ</span><input id="ropeAngle" type="range" min="0" max="180" value="${angle}" data-rope-angle><b>${angle}°</b></label>
+    </section>
+    <section class="position-machine rope-equation-machine">
+      <header class="lab-section-head"><span>STATION B</span><b>Q / K 旋转编码器</b><em>V 不需要旋转</em></header>
+      <div class="rope-flow"><div><span>原始 Query</span><b>q<sub>m</sub></b><i>语义方向</i></div><strong>R<sub>θ,m</sub></strong><div class="rotated"><span>旋转后 Query</span><b>q′<sub>m</sub></b><i>带绝对位置角度</i></div></div>
+      <div class="rope-flow"><div><span>原始 Key</span><b>k<sub>n</sub></b><i>语义方向</i></div><strong>R<sub>θ,n</sub></strong><div class="rotated"><span>旋转后 Key</span><b>k′<sub>n</sub></b><i>带绝对位置角度</i></div></div>
+      <div class="rope-dot-product"><span>q′<sub>m</sub><sup>T</sup> k′<sub>n</sub></span><b>≈</b><strong>相对距离 m − n</strong><i>位置信息进入内积，但不改动 V</i></div>
+    </section>
+    <section class="rope-explain-card">
+      <header><span>ROTARY POSITION EMBEDDING</span><b>绝对形式，得到相对效果</b></header>
+      <div class="rope-token-meaning"><b>${escapeHTML(activeToken)}</b><span>p${positionIndex}</span><i>→</i><strong>旋转 ${angle}°</strong><em>→</em><label>Q′ / K′</label></div>
+      <div class="rope-principles"><span><b>① 两两分组</b>实际 d 维向量会拆成 d / 2 个二维平面；这里仅演示其中一个平面。</span><span><b>② 位置决定角度</b>每组角频率通常来自 θ<sub>i</sub> = base<sup>−2i/d</sup>，经典实现常取 base = 10000。</span><span><b>③ 内积显现距离</b>Q、K 分别按 m、n 旋转后，内积对 m − n 敏感；V 不旋转。</span></div>
+      <p>RoPE 用绝对位置 m、n 的旋转来得到相对位移效果。经典 RoPE 的 base 通常是设定值；扩展方法会调整频率或缩放，xPOS 还为长距离引入尺度衰减。</p>
+    </section>
+  </div>`;
+}
+
+function positionKnowledgeDeck() {
+  return `<section class="position-knowledge-deck" aria-label="位置编码方法总览">
+    <header><span>POSITION METHOD MAP</span><b>同一条序列，三处不同的“位置注入点”</b><em>避免把所有位置编码都理解成“给词加一个编号”</em></header>
+    <div class="position-knowledge-grid">
+      <article class="knowledge-absolute"><span>绝对位置</span><b>输入端相加</b><code>X<sub>p</sub> = E<sub>token</sub> + E<sub>position</sub></code><p><strong>固定三角：</strong>无额外位置参数，可按公式计算任意 p。<br><strong>可学习表：</strong>每个 p 是训练参数，通常受最大长度约束。</p><i>代表：原始 Transformer、BERT、GPT-2</i></article>
+      <article class="knowledge-relative"><span>相对位置</span><b>注意力分数修正</b><code>A<sub>ij</sub> = Q<sub>i</sub>K<sub>j</sub><sup>T</sup>/√d + bias(i−j)</code><p><strong>核心：</strong>直接建模 i 与 j 的距离或相对向量。<br><strong>分支：</strong>ALiBi 线性偏置、T5 距离分桶、XLNet / DeBERTa 解耦项。</p><i>优势：关系显式、常具更好的长度泛化</i></article>
+      <article class="knowledge-rope"><span>旋转位置</span><b>Q / K 投影后旋转</b><code>q′<sub>m</sub> = R<sub>m</sub>q<sub>m</sub>， k′<sub>n</sub> = R<sub>n</sub>k<sub>n</sub></code><p><strong>核心：</strong>位置成为旋转角，Q′·K′ 对 m−n 敏感。<br><strong>边界：</strong>V 不旋转；长上下文通常还需频率或尺度扩展策略。</p><i>代表：LLaMA 等现代 Decoder 系列</i></article>
+    </div>
+  </section>`;
+}
+
+function updateModuleTransfer(tokens) {
+  const compactTokens = tokens.slice(0, 5);
+  const ids = compactTokens.map((token, index) => 100 + (hashValue(`token-id-${token}-${index}`) % 890));
+  const labels = {
+    absolute: ['E_position', '把位置向量与 E_token 相加'],
+    relative: ['bias(i − j)', '把相对距离直接写进 Attention Score'],
+    rope: ['R_m Q · R_n K', '只旋转 Q / K，让内积感知 m − n']
+  }[positionMode];
+  const tokenNode = $('#transferTokens');
+  const idNode = $('#transferIds');
+  const positionNode = $('#transferPositionSignal');
+  const detailNode = $('#transferPositionDetail');
+  if (tokenNode) tokenNode.textContent = compactTokens.join(' · ');
+  if (idNode) idNode.textContent = `[ ${ids.join(', ')} ]`;
+  if (positionNode) positionNode.innerHTML = labels[0];
+  if (detailNode) detailNode.textContent = labels[1];
+}
+
+function renderPositionWorkbench() {
+  if (!$('#positionLabBody')) return;
+  const tokens = positionTokens();
+  positionIndex = Math.min(positionIndex, tokens.length - 1);
+  relativeQueryIndex = Math.min(relativeQueryIndex, tokens.length - 1);
+  let body = '';
+  if (positionMode === 'absolute') body = absolutePositionView(tokens);
+  if (positionMode === 'relative') body = relativePositionView(tokens);
+  if (positionMode === 'rope') body = ropePositionView(tokens);
+  body += positionKnowledgeDeck();
+  $('#positionLabBody').innerHTML = body;
+  updateModuleTransfer(tokens);
+  $$('.position-mode-tabs button').forEach(button => {
+    const active = button.dataset.positionMode === positionMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  const signals = {
+    absolute: absolutePositionVariant === 'sinusoidal' ? ['固定三角位置向量', 'sin / cos · dmodel = 8'] : ['可学习绝对位置向量', 'trained table · dmodel = 8'],
+    relative: ['相对距离注意力偏置', 'ALiBi · XLNet · T5 · DeBERTa'],
+    rope: ['旋转位置编码', `Q / K rotation · θ = ${ropeAngle}°`]
+  }[positionMode];
+  $('#positionSignalName').innerHTML = signals[0];
+  $('#positionSignalDetail').innerHTML = signals[1];
+  const memories = {
+    absolute: '绝对位置把位置向量直接加进输入表示；固定三角编码不增加训练参数，可学习编码则为每个位置训练一张向量表。',
+    relative: '相对位置不急着给 Token 一个坐标，而是把两个 Token 的距离直接交给 Attention；ALiBi 用线性偏置鼓励关注近邻。',
+    rope: 'RoPE 不旋转 V，只旋转 Q / K；绝对旋转角通过内积转化为 m − n 的相对位置信息。'
+  };
+  $('#positionMemory').textContent = memories[positionMode];
+  $('#positionLabStatus').textContent = `${positionMode === 'absolute' ? '位置向量正在注入 Embedding' : positionMode === 'relative' ? '相对距离正在修正 Attention Score' : 'Q / K 正在进入旋转位置编码器'} · ${tokens.length} 个 Token 在线`;
+}
+
 function updateOutput(points) {
   const point = selectedPoint(points);
   if (!point) return;
@@ -619,6 +829,7 @@ function updateMethod(method, instant = false) {
 
 function renderTokenSelector(preferred = '') {
   const text = $('#embeddingText').value.trim() || '我喜欢吃苹果';
+  syncModuleLinks(text);
   inputTokens = tokenizeEmbeddingText(text);
   if (!inputTokens.length) inputTokens = ['苹果'];
   const teachingCandidate = inputTokens.includes('苹果')
@@ -630,6 +841,7 @@ function renderTokenSelector(preferred = '') {
   $('#contextPresets').querySelector('[data-context="fruit"] b').textContent = targetToken === '苹果' ? '我喜欢吃苹果' : text;
   $('#contextPresets').querySelector('[data-context="tech"] b').textContent = targetToken === '苹果' ? '苹果发布了新手机' : `${targetToken} 出现在另一段语境中`;
   updateMethod(vectorMethod, true);
+  if ($('#positionLabBody')) renderPositionWorkbench();
 }
 
 class OctantVectorSpace {
@@ -1011,88 +1223,133 @@ class OctantVectorSpace {
   }
 }
 
-const vectorSpace = new OctantVectorSpace($('#vectorSpaceCanvas'));
-
+const isEmbeddingWorkshop = Boolean($('#embeddingText'));
+const isPositionWorkshop = Boolean($('#positionLabBody'));
 const params = new URLSearchParams(location.search);
 const syncedText = params.get('text') || localStorage.getItem('embeddingFactoryInput') || '我喜欢吃苹果';
-$('#embeddingText').value = syncedText;
 
-$('#loadEmbeddingInput').addEventListener('click', () => {
-  localStorage.setItem('embeddingFactoryInput', $('#embeddingText').value.trim());
-  renderTokenSelector(targetToken);
-});
+if (isEmbeddingWorkshop) {
+  vectorSpace = new OctantVectorSpace($('#vectorSpaceCanvas'));
+  $('#embeddingText').value = syncedText;
 
-$('#embeddingText').addEventListener('keydown', event => {
-  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') $('#loadEmbeddingInput').click();
-});
-
-$('#oneHotMatrix').addEventListener('click', event => {
-  const row = event.target.closest('[data-onehot-id]');
-  if (!row) return;
-  selectedPointId = row.dataset.onehotId;
-  const points = methodLayout('onehot');
-  renderOneHotMatrix(points);
-  updateOutput(points);
-});
-
-$('#methodVisualizer').addEventListener('click', event => {
-  const tokenButton = event.target.closest('[data-workbench-token]');
-  if (tokenButton) {
-    targetToken = tokenButton.dataset.workbenchToken;
-    selectedPointId = 'target';
+  $('#loadEmbeddingInput').addEventListener('click', () => {
+    localStorage.setItem('embeddingFactoryInput', $('#embeddingText').value.trim());
     renderTokenSelector(targetToken);
-    return;
-  }
-  const modeButton = event.target.closest('[data-w2v-mode]');
-  if (modeButton) {
-    word2vecMode = modeButton.dataset.w2vMode;
-    renderMethodVisualizer('word2vec');
-    return;
-  }
-  const pulseButton = event.target.closest('[data-train-pulse]');
-  if (!pulseButton) return;
-  const visualizer = $('#methodVisualizer');
-  visualizer.classList.remove('training-pulse');
-  requestAnimationFrame(() => visualizer.classList.add('training-pulse'));
-  setTimeout(() => visualizer.classList.remove('training-pulse'), 5200);
-});
+  });
 
-$('#representationSwitch').addEventListener('click', event => {
-  const button = event.target.closest('[data-representation-view]');
-  if (!button || vectorMethod === 'onehot') return;
-  representationView = button.dataset.representationView;
-  const points = methodLayout(vectorMethod);
-  updateRepresentation(points);
-  updateOutput(points);
-});
+  $('#embeddingText').addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') $('#loadEmbeddingInput').click();
+  });
 
-$$('.family-switch button').forEach(button => button.addEventListener('click', () => {
-  const family = button.dataset.vectorFamily;
-  updateMethod(family === 'static' ? 'onehot' : 'elmo');
-}));
+  $('#oneHotMatrix').addEventListener('click', event => {
+    const row = event.target.closest('[data-onehot-id]');
+    if (!row) return;
+    selectedPointId = row.dataset.onehotId;
+    const points = methodLayout('onehot');
+    renderOneHotMatrix(points);
+    updateOutput(points);
+  });
 
-$$('.method-bank button').forEach(button => button.addEventListener('click', () => updateMethod(button.dataset.vectorMethod)));
+  $('#methodVisualizer').addEventListener('click', event => {
+    const tokenButton = event.target.closest('[data-workbench-token]');
+    if (tokenButton) {
+      targetToken = tokenButton.dataset.workbenchToken;
+      selectedPointId = 'target';
+      renderTokenSelector(targetToken);
+      return;
+    }
+    const modeButton = event.target.closest('[data-w2v-mode]');
+    if (modeButton) {
+      word2vecMode = modeButton.dataset.w2vMode;
+      renderMethodVisualizer('word2vec');
+      return;
+    }
+    const pulseButton = event.target.closest('[data-train-pulse]');
+    if (!pulseButton) return;
+    const visualizer = $('#methodVisualizer');
+    visualizer.classList.remove('training-pulse');
+    requestAnimationFrame(() => visualizer.classList.add('training-pulse'));
+    setTimeout(() => visualizer.classList.remove('training-pulse'), 5200);
+  });
 
-$$('.context-presets button').forEach(button => button.addEventListener('click', () => {
-  vectorContext = button.dataset.context;
-  $$('.context-presets button').forEach(item => item.classList.toggle('active', item === button));
-  updateMethod(vectorMethod);
-}));
+  $('#representationSwitch').addEventListener('click', event => {
+    const button = event.target.closest('[data-representation-view]');
+    if (!button || vectorMethod === 'onehot') return;
+    representationView = button.dataset.representationView;
+    const points = methodLayout(vectorMethod);
+    updateRepresentation(points);
+    updateOutput(points);
+  });
 
-$('#rotateVectorSpace').addEventListener('click', event => {
-  vectorSpace.autoRotate = !vectorSpace.autoRotate;
-  event.currentTarget.setAttribute('aria-pressed', String(vectorSpace.autoRotate));
-  event.currentTarget.textContent = vectorSpace.autoRotate ? '停止旋转' : '自动旋转';
-  vectorSpace.needsDraw = true;
-});
+  $$('.family-switch button').forEach(button => button.addEventListener('click', () => {
+    const family = button.dataset.vectorFamily;
+    updateMethod(family === 'static' ? 'onehot' : 'elmo');
+  }));
 
-$('#resetVectorView').addEventListener('click', () => vectorSpace.reset());
+  $$('.method-bank button').forEach(button => button.addEventListener('click', () => updateMethod(button.dataset.vectorMethod)));
 
-$('.back-factory').addEventListener('click', event => {
-  event.preventDefault();
-  document.body.classList.add('page-shifting-left');
-  setTimeout(() => { location.href = 'index.html'; }, 360);
-});
+  $$('.context-presets button').forEach(button => button.addEventListener('click', () => {
+    vectorContext = button.dataset.context;
+    $$('.context-presets button').forEach(item => item.classList.toggle('active', item === button));
+    updateMethod(vectorMethod);
+  }));
 
-renderTokenSelector();
-updateMethod('onehot', true);
+  $('#rotateVectorSpace').addEventListener('click', event => {
+    vectorSpace.autoRotate = !vectorSpace.autoRotate;
+    event.currentTarget.setAttribute('aria-pressed', String(vectorSpace.autoRotate));
+    event.currentTarget.textContent = vectorSpace.autoRotate ? '停止旋转' : '自动旋转';
+    vectorSpace.needsDraw = true;
+  });
+
+  $('#resetVectorView').addEventListener('click', () => vectorSpace.reset());
+
+  $('.back-factory').addEventListener('click', event => {
+    event.preventDefault();
+    document.body.classList.add('page-shifting-left');
+    setTimeout(() => { location.href = 'index.html'; }, 360);
+  });
+
+  renderTokenSelector();
+  updateMethod('onehot', true);
+}
+
+if (isPositionWorkshop) {
+  inputTokens = tokenizeEmbeddingText(syncedText);
+  syncModuleLinks(syncedText);
+
+  $$('.position-mode-tabs button').forEach(button => button.addEventListener('click', () => {
+    positionMode = button.dataset.positionMode;
+    renderPositionWorkbench();
+  }));
+
+  $('#positionLabBody').addEventListener('click', event => {
+    const variantButton = event.target.closest('[data-absolute-variant]');
+    if (variantButton) {
+      absolutePositionVariant = variantButton.dataset.absoluteVariant;
+      positionMode = 'absolute';
+      renderPositionWorkbench();
+      return;
+    }
+    const positionButton = event.target.closest('[data-position-index]');
+    if (positionButton) {
+      positionIndex = Number(positionButton.dataset.positionIndex);
+      if (positionButton.closest('.relative-attention-machine')) relativeQueryIndex = positionIndex;
+      renderPositionWorkbench();
+      return;
+    }
+    const queryButton = event.target.closest('[data-relative-query]');
+    if (queryButton) {
+      relativeQueryIndex = Number(queryButton.dataset.relativeQuery);
+      positionMode = 'relative';
+      renderPositionWorkbench();
+    }
+  });
+
+  $('#positionLabBody').addEventListener('input', event => {
+    if (!event.target.matches('[data-rope-angle]')) return;
+    ropeAngle = Number(event.target.value);
+    renderPositionWorkbench();
+  });
+
+  renderPositionWorkbench();
+}
